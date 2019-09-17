@@ -5,11 +5,10 @@ function result = run_precommit_tests(s_program_id)
 
 %setup_paths;
 addpath('./')
-addpath(genpath('../tools'))
+addpath(genpath('./tools'))
 addpath('./myMatlab')
 addpath(genpath('./myclasses/'))
 addpath('../thirdparty-matlab/nway331/')
-addpath('../thirdparty-matlab/trandn/')
 
 if nargin < 1
     save_loc = './unit-testing/summary_of_tests.md';
