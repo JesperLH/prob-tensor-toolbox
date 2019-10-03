@@ -161,21 +161,6 @@ N=size(X); %Elements in each dimension
     N,D, missing_marg, ...
     constraints, inference_scheme);
 
-% If provided, then initialize factors to specific values
-if ~isempty(initial_factors)
-    for i = 1:Nx
-        if ~isempty(initial_factors{i})
-            if isobject(initial_factors{i}) ...
-                    && strcmp(class(initial_factors{i}),class(factors{i}))
-                factors{i} = initial_factors{i};
-                priors{i} = factors{i}.hyperparameter; % !TODO Investigate what this call brakes!
-            elseif ismatrix(initial_factors{i}) || iscell(initial_factors{i})
-                factors{i}.initialize(initial_factors{i});
-            end
-        end
-    end
-end
-
 % Get relevant expected moments of the factors and setup X and R matricized
 % for each mode. 
 % TODO: Data and missing pattern should not be replicated.
@@ -185,13 +170,36 @@ E_FACT = cell(Nx,1);
 E_FACT2 = cell(Nx,1);
 E_Lambda = cell(Nx,1);
 
-for i = 1:Nx
+for i = 1:Nx  % Setup each factor
+    
+    init_E2 = false;
+    % Initialize factor as specified by the user (if provided)
+    if ~isempty(initial_factors) && ~isempty(initial_factors{i})
+        if isobject(initial_factors{i}) ...
+                && strcmp(class(initial_factors{i}),class(factors{i}))
+            % FactorMatrix object passed
+            factors{i} = initial_factors{i};
+            priors{i} = factors{i}.hyperparameter; % !TODO Investigate what this call brakes!
+        elseif (ismatrix(initial_factors{i}) && ~isobject(initial_factors{i}))...
+                    || iscell(initial_factors{i})
+            if iscell(initial_factors{i})  % First and second moment passed
+                factors{i}.initialize(initial_factors{i}{1});
+                E_FACT2{i} = initial_factors{i}{2};
+                init_E2 = true;
+            else
+                factors{i}.initialize(initial_factors{i});
+            end
+        end
+    end
+    
     fprintf(factors{i}.getSummary()); fprintf('\n')
     
+    % Get expected values
     E_FACT{i} = factors{i}.getExpFirstMoment();
-    E_FACT2{i} = E_FACT{i}'*E_FACT{i} + eye(D);
+    if ~init_E2
+         E_FACT2{i} = E_FACT{i}'*E_FACT{i} + eye(D);
+    end
     E_Lambda{i} = priors{i}.getExpFirstMoment();
-    
     
     Rm{i} = matricizing(R_marg,i);
 end
