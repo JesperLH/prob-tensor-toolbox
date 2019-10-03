@@ -165,8 +165,13 @@ N=size(X); %Elements in each dimension
 if ~isempty(initial_factors)
     for i = 1:Nx
         if ~isempty(initial_factors{i})
-            factors{i}.initialize(initial_factors{i});
-            % % TODO: What if 2nd moments are passed?
+            if isobject(initial_factors{i}) ...
+                    && strcmp(class(initial_factors{i}),class(factors{i}))
+                factors{i} = initial_factors{i};
+                priors{i} = factors{i}.hyperparameter; % !TODO Investigate what this call brakes!
+            elseif ismatrix(initial_factors{i}) || iscell(initial_factors{i})
+                factors{i}.initialize(initial_factors{i});
+            end
         end
     end
 end

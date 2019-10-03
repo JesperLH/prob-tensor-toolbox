@@ -25,6 +25,7 @@ classdef (Abstract) FactorMatrixInterface < handle
     properties
         hyperparameter; % Link to prior on the parameters
         factor;         % 
+        factorTfactor;
         factorsize;     % [#Observations, #Components]
         data_has_missing = false;
         
@@ -58,7 +59,7 @@ classdef (Abstract) FactorMatrixInterface < handle
         
         function ci = getCredibilityInterval(self, usr_quantiles)
             % Get samples form the factor distribution
-            sample_data = self.getSamples(1000); % TODO: Determine a sutiable number..
+            sample_data = self.getSamples(1000); % TODO: Determine a suitable number..
             
             % Calculate the emperical quantiles of the distribution.
             ci = zeros([self.factorsize, length(usr_quantiles)]);
@@ -71,9 +72,27 @@ classdef (Abstract) FactorMatrixInterface < handle
             if isa(init,'function_handle')
                 self.factor = init(self.factorsize);
                 self.initialization = func2str(init);
-            elseif all(size(init) == self.factorsize)
+                
+            elseif ismatrix(init) && all(size(init) == self.factorsize)
+                % includes only first moment
                 self.factor = init;
-                self.initialization = 'Provided by user';
+                self.initialization = 'First Moment Provided by user';
+                
+            elseif iscell(init) && ismatrix(init{1}) && ismatrix(init{2})
+                % includes both first and second moment
+                if all(size(init{1}) == self.factorsize) ...
+                        && all(size(init{2}) == self.factorsize(2))
+                    self.factor = init{1};
+                    self.factorTfactor = init{2};
+                else
+                    error(['Incompatible initialization. Got sizes (%i,%i) ',...
+                        'and (%i, %i) but expected (%i,%i) and (%i,%i) for first and second moment.'],...
+                        size(init{1}), size(init{2}), self.factorsize, self.factorsize(2),self.factorsize(2))
+                    
+                end
+                
+                self.initialization = 'First and Second Moment Provided by user';
+                
             else
                 error('Not a valid initialization.')
             end
