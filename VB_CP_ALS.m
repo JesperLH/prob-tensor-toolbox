@@ -85,17 +85,17 @@ paramNames = {'conv_crit', 'maxiter', ...
     'model_tau', 'fixed_tau', 'tau_a0', 'tau_b0',...
     'model_lambda', 'fixed_lambda', 'lambda_a0', 'lambda_b0'...
     'init_method','inference','noise','init_factors','impute missing',...
-    'init_noise'};
+    'init_noise', 'fix_factors', 'fix_noise'};
 defaults = {1e-8, 500, ...
     true , 10  , 1e-4, 1e-4,...
     true , 5 , 1e-4, 1e-4,...
-	0, 'variational',false(ndims(X),1), [], false,[]};
+	0, 'variational',false(ndims(X),1), [], false,[], [], []};
 % Initialize variables to default value or value given in varargin
 [conv_crit, maxiter, ...
     model_tau, fixed_tau, tau_alpha0, tau_beta0,...
     model_lambda, fixed_lambda, lambda_alpha0, lambda_beta0,...
     init_method, inference_scheme, hetero_noise_modeling, initial_factors,...
-    usr_impute_missing, init_noise]...
+    usr_impute_missing, init_noise, dont_update_factor, dont_update_noise]...
     = internal.stats.parseArgs(paramNames, defaults, varargin{:});
 
 % Check input is allowed (and sensible)
@@ -109,6 +109,11 @@ if maxiter < fixed_lambda
 end
 if maxiter < fixed_tau
     fixed_tau=max(0,maxiter-2);
+end
+
+if ~isempty(init_noise) && iscell(init_noise) && ~any(hetero_noise_modeling)
+    error(['Homoscedastic noise was specified, but initial noise was specified',...
+        ' as heteroscedastic.'])
 end
 
 % Check whether noise modeling is done and inform user.
@@ -277,7 +282,6 @@ else
     if ~isempty(init_noise)
         if isobject(init_noise) && strcmp(class(noiseType), class(init_noise))
             noiseType = init_noise;
-%             noiseType.ca
 
         elseif isvector(init_noise) && ~isobject(init_noise)
             noiseType.noise_value = init_noise;
@@ -339,13 +343,14 @@ while delta_cost>=conv_crit && iter<maxiter || ...
     time_tic_toc = tic;
     time_cpu = cputime;
     
-    cost = 0;
     %% Update factor matrices (one at a time)
     for i = 1:Nx % IDEA: Consider randomizing the order, i.e. i = randperm(Nx)
         
         % Update factor distribution parameters
-        factors{i}.updateFactor(i, Xm{i}, Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
-
+        if isempty(dont_update_factor) || ~dont_update_factor(i)
+            factors{i}.updateFactor(i, Xm{i}, Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+        end
+        
         % Get the expected value (sufficient statistics)
         if hetero_noise_modeling(i)
             E_FACT{i} = factors{i}.getExpFirstMoment(Etau{i});
@@ -354,7 +359,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             E_FACT{i} = factors{i}.getExpFirstMoment();
             E_FACT2{i} = factors{i}.getExpSecondMoment();
         end
-        
+
         % Calculate the expected second moment between pairs (missing,
         % noise modeling) or each element (sparsity) or not at all. 
         % - TODO: If only unimodal factors, then only the exp. elem. moment
@@ -381,7 +386,11 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             E_Lambda{i} = priors{i}.getExpFirstMoment();
         end
         
-        % Added cost
+    end
+    
+    % Calculate ELBO/cost contribution
+    cost = 0;
+    for i = 1:Nx
         if ~shares_prior(i)
             cost = cost + factors{i}.calcCost()...
                 + priors{i}.calcCost();
@@ -469,8 +478,18 @@ while delta_cost>=conv_crit && iter<maxiter || ...
     
     %% Update noise precision
     if any(hetero_noise_modeling) % Heteroscedastic noise (mode specific)
-        idx = find(hetero_noise_modeling); 
-        noise_final_mode = idx(end);
+        
+        if isempty(dont_update_noise) % Specified by user
+            idx = find(hetero_noise_modeling); 
+        else
+            idx = find(hetero_noise_modeling(:) .* ~dont_update_noise(:));
+        end
+        
+        if isempty(idx) % Need a mode for calculating SSE og loglike
+            noise_final_mode = find(hetero_noise_modeling,1);
+        else
+            noise_final_mode = idx(end);
+        end
         
         for i = idx
             if model_tau && iter > fixed_tau
