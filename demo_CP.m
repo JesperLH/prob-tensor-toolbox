@@ -4,11 +4,11 @@ addpath(genpath('./tools'))
 addpath('./myMatlab/')
 addpath('../thirdparty-matlab/trandn/') % Download from http://www.models.life.ku.dk/nwaytoolbox
 
-Ndims = [50,49]; D = 5;
-constr = {'normal ard','nonneg sparse'}; 
+Ndims = [50,49, 48]; D = 5;
+constr = {'normal ard','nonneg sparse','normal constr'}; 
 % type 'help VB_CP_ALS' to see additional constraints
 
-X = generateTensorData(Ndims,D,[6,3]);
+X = generateTensorData(Ndims,D,[6,3,6]);
 X = addTensorNoise(X,10); % SNR = 10 dB
 
 % Run the CP model using variational inference
