@@ -84,17 +84,18 @@ end
 paramNames = {'conv_crit', 'maxiter', ...
     'model_tau', 'fixed_tau', 'tau_a0', 'tau_b0',...
     'model_lambda', 'fixed_lambda', 'lambda_a0', 'lambda_b0'...
-    'init_method','inference','noise','init_factors','impute missing'};
+    'init_method','inference','noise','init_factors','impute missing',...
+    'init_noise'};
 defaults = {1e-8, 500, ...
     true , 10  , 1e-4, 1e-4,...
     true , 5 , 1e-4, 1e-4,...
-	0, 'variational',false(ndims(X),1), [], false};
+	0, 'variational',false(ndims(X),1), [], false,[]};
 % Initialize variables to default value or value given in varargin
 [conv_crit, maxiter, ...
     model_tau, fixed_tau, tau_alpha0, tau_beta0,...
     model_lambda, fixed_lambda, lambda_alpha0, lambda_beta0,...
     init_method, inference_scheme, hetero_noise_modeling, initial_factors,...
-    usr_impute_missing]...
+    usr_impute_missing, init_noise]...
     = internal.stats.parseArgs(paramNames, defaults, varargin{:});
 
 % Check input is allowed (and sensible)
@@ -243,8 +244,21 @@ if any(hetero_noise_modeling) % Does any modes have heteroscedastic noise
             noiseType{i} = GammaNoiseHeteroscedastic(...
                 i, X,R_marg, tau_alpha0, tau_beta0, noise_inference,...
                 ~my_contains(constraints,'normal','IgnoreCase',true)); % % TODO: Remove reliance on isUnivariateFactor..
+                       
+            % Initialize noise specified by user (if provided)
+            if ~isempty(init_noise) && ~isempty(init_noise{i})
+                if isobject(init_noise{i}) && strcmp(class(noiseType{i}), class(init_noise{i}))
+                    noiseType{i} = init_noise{i};
+                    
+                elseif isvector(init_noise{i}) && ~isobject(init_noise{i})
+                    noiseType{i}.noise_value = init_noise{i};
+                    noiseType{i}.noise_log_value = log(init_noise{i});
+                    
+                end
+            end
             Etau{i} = noiseType{i}.getExpFirstMoment();
             Eln_tau{i} = noiseType{i}.getExpLogMoment();
+            
         else
             % These are only defined for convienience, and could be removed
             % entirely (if desired).
@@ -259,6 +273,18 @@ else
     % Homoscedastic noise
     noiseType = GammaNoise(X,R_marg, tau_alpha0, tau_beta0, noise_inference, ...
         ~my_contains(constraints,'normal','IgnoreCase',true)); % % TODO: Remove reliance on isUnivariateFactor..
+    % Initialize noise specified by user (if provided)
+    if ~isempty(init_noise)
+        if isobject(init_noise) && strcmp(class(noiseType), class(init_noise))
+            noiseType = init_noise;
+%             noiseType.ca
+
+        elseif isvector(init_noise) && ~isobject(init_noise)
+            noiseType.noise_value = init_noise;
+            noiseType.noise_log_value = log(init_noise);
+
+        end
+    end
     Etau = noiseType.getExpFirstMoment();
     SST = noiseType.getSST();
 end
@@ -511,8 +537,8 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         time_cpu = cputime-time_cpu;
         
         if any(hetero_noise_modeling)
-            fprintf(' %16i | %16.4e | %16.4e | %16s | %16.4f | %16.4f | %16.4f |\n',...
-                            iter, cost, delta_cost, 'Not available', Evarexpl(iter), time_tic_toc,...
+            fprintf(' %16i | %16.4e | %16.4e | %16.4e | %16.4f | %16.4f | %16.4f |\n',...
+                            iter, cost, delta_cost, 1/sqrt(median(cat(1,Etau{:}))), Evarexpl(iter), time_tic_toc,...
                             time_cpu);
 
         else

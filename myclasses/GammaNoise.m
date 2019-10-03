@@ -64,9 +64,22 @@ classdef GammaNoise < NoiseInterface
             end
         end
         
+        function updateNumberOfElements(self,X,R)
+            if isempty(R)
+                self.number_of_elements = numel(X);
+            else
+                self.number_of_elements = nnz(R);
+                self.has_missing_values = ~(numel(X) == nnz(R));
+            end
+        end
+        
         function sse = calcSSE(self,Xm, Rm, eFact, eFact2, eFact2pairwise)
             [kr, kr2, krkr] = self.calcSufficientStats(eFact, eFact2);
             
+            if sum(self.number_of_elements) ~= nnz(Xm)
+                % If the noise prior was passed from another dataset
+                updateNumberOfElements(self,Xm,Rm);
+            end
             
             if self.has_missing_values
                 ind = 2:length(eFact);

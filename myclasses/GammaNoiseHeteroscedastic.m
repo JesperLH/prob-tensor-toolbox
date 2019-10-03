@@ -68,6 +68,15 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
             end
         end
         
+        function updateNumberOfElements(self,X,R)
+            if isempty(R)
+                self.number_of_elements = numel(X)/size(X,1); % Number of elements for each obs in noise_mode
+            else
+                self.number_of_elements = sum(matricizing(R,1),2);
+                self.has_missing_values = ~(numel(X) == sum(self.number_of_elements));
+            end
+        end
+        
         function updateSST(self, Xm, eNoise)
             ind = 1:length(eNoise);
             ind(self.mode_idx) = [];
@@ -82,6 +91,11 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
         function sse = calcSSE(self,Xm, Rm, eFact, eFact2, eFact2pairwise, eNoise)
             
             [kr, ~, krkr] = self.calcSufficientStats(eFact, eFact2);
+                        
+            if sum(self.number_of_elements) ~= nnz(Xm)
+                % If the noise prior was passed from another dataset
+                updateNumberOfElements(self,Xm,Rm);
+            end
             
             self.updateSST(Xm, eNoise);
             
@@ -166,7 +180,7 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
         function updateNoise(self, Xm, Rm, eFact, eFact2, eFact2pairwise, eNoise)
             % Update error
             self.calcSSE(Xm,Rm,eFact,eFact2, eFact2pairwise, eNoise);
-            
+
             %
             self.est_alpha = self.hp_alpha+self.number_of_elements/2;
             self.est_beta = self.hp_beta+self.SSE/2;
@@ -189,7 +203,7 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
             if nargin == 1
                 other_exp_log_noise = 0;
             end
-            
+                        
             cost = -0.5*sum(self.number_of_elements)*log(2*pi)...
                 +0.5*sum(self.number_of_elements.*self.noise_log_value)...
                 +0.5*sum(other_exp_log_noise(:))... % <- normalization constant
