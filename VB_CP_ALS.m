@@ -506,7 +506,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             noise_final_mode = idx(end);
         end
         
-        for i = idx
+        for i = idx(:)'
             X = f_unfold_i_to_j(X,i_mode_unfolded,i);
             R = f_unfold_i_to_j(R,i_mode_unfolded,i);
             i_mode_unfolded = i;
