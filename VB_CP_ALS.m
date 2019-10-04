@@ -140,31 +140,29 @@ inference_scheme = strtrim(inference_scheme);
 only_variational_inference = all(all(strcmpi('variational',inference_scheme)));
 
 %% Initialize the factor matrices and noise
-R_marg=true-isnan(X); % Set observed (true) or not observed (false) status.
-missing_marg = ~(sum(R_marg(:))==numel(X));
-R_imp = R_marg;
+R_obs=logical(true-isnan(X)); % Set observed (true) or not observed (false) status.
+has_missing_marg = ~all(R_obs(:));
+impute_x = ~R_obs;  % find(~R_obs) gives the indices, but they require more space.
 
-if missing_marg && usr_impute_missing
+if has_missing_marg && usr_impute_missing
     impute_missing = true;
 else
     impute_missing = false;
 end
 
 if impute_missing
-   R_marg(:) = true; % Set to true to avoid any marginalization
-   missing_marg = false;
+   R_obs(:) = true; % Set to true to avoid any marginalization
+   has_missing_marg = false;
 else
-    X(~R_marg)=0;
+    X(~R_obs)=0;
 end
-
-
 
 Nx=ndims(X); %Tensor order
 N=size(X); %Elements in each dimension
 
 % Initialize distributions according to the specified constraints
 [factors, priors, shares_prior] = initializePriorDistributions(...
-    N,D, missing_marg, ...
+    N,D, has_missing_marg, ...
     constraints, inference_scheme);
 
 % Get relevant expected moments of the factors and setup X and R matricized
@@ -200,36 +198,37 @@ for i = 1:Nx  % Setup each factor
     
     fprintf(factors{i}.getSummary()); fprintf('\n')
     
-    % Get expected values
+    % Get/initialize expected values
     E_FACT{i} = factors{i}.getExpFirstMoment();
     if ~init_E2
          E_FACT2{i} = E_FACT{i}'*E_FACT{i} + eye(D);
     end
     E_Lambda{i} = priors{i}.getExpFirstMoment();
     
-    Rm{i} = matricizing(R_marg,i);
 end
 
 if impute_missing
    % initial imputation
    X_recon = nmodel(E_FACT);
-   X(~R_imp) = X_recon(~R_imp);
+   X(impute_x) = X_recon(impute_x);
+   clear X_recon
 else
-    X(~R_marg)=0;
+    X(~R_obs)=0;
 end
 
-for i = 1:Nx
-    Xm{i} = matricizing(X,i);
-    
-    %% TODO: This check never fails when imputing data, as empty fibers have been imputed above..
-    assert(all(sum(abs(Xm{i}),2)>0), 'One or more %i-mode fibers are entirely unobserved!', i)
-end
-
+f_unfold_i_to_j = @(data, un_idx, mat_idx) matricizing(unmatricizing(data,un_idx,N),mat_idx);
+% for i = 1:Nx
+%     Xm{i} = matricizing(X,i);
+%     Rm{i} = matricizing(R_obs,i);
+% 
+%     %% TODO: This check never fails when imputing data, as empty fibers have been imputed above..
+%     assert(all(sum(abs(Xm{i}),2)>0), 'One or more %i-mode fibers are entirely unobserved!', i)
+% end
 
 % Initializes elementwise second moment (possibly with pairwise interactions)
 E_FACT2elementpairwise = cell(length(E_FACT),1);
 for i = 1:Nx
-   if missing_marg || hetero_noise_modeling(i)
+   if has_missing_marg || hetero_noise_modeling(i)
         E_FACT2elementpairwise{i} = computeUnfoldedMoments(E_FACT{i},{[]});
     elseif my_contains(constraints{i},'sparse','IgnoreCase',true)
         E_FACT2elementpairwise{i} = E_FACT{i}.^2+1;
@@ -247,7 +246,7 @@ if any(hetero_noise_modeling) % Does any modes have heteroscedastic noise
     for i = 1:Nx
         if hetero_noise_modeling(i) % Mode-i has heteroscedastic noise
             noiseType{i} = GammaNoiseHeteroscedastic(...
-                i, X,R_marg, tau_alpha0, tau_beta0, noise_inference,...
+                i, X,R_obs, tau_alpha0, tau_beta0, noise_inference,...
                 ~my_contains(constraints,'normal','IgnoreCase',true)); % % TODO: Remove reliance on isUnivariateFactor..
                        
             % Initialize noise specified by user (if provided)
@@ -276,7 +275,7 @@ if any(hetero_noise_modeling) % Does any modes have heteroscedastic noise
     
 else
     % Homoscedastic noise
-    noiseType = GammaNoise(X,R_marg, tau_alpha0, tau_beta0, noise_inference, ...
+    noiseType = GammaNoise(X,R_obs, tau_alpha0, tau_beta0, noise_inference, ...
         ~my_contains(constraints,'normal','IgnoreCase',true)); % % TODO: Remove reliance on isUnivariateFactor..
     % Initialize noise specified by user (if provided)
     if ~isempty(init_noise)
@@ -302,10 +301,10 @@ if any(my_contains(constraints, 'infi', 'IgnoreCase', true))
     infty_idx = my_contains(constraints, 'infi', 'IgnoreCase', true);
     for i = [find(~infty_idx), ...  % First update all non-infty factors
             find(infty_idx)]        % Second update all infty factors
-        factors{i}.updateFactor(i, Xm{i}, Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+        factors{i}.updateFactor(i, matricizing(X,i), matricizing(R_obs,i), E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
         E_FACT{i} = factors{i}.getExpFirstMoment();
         E_FACT2{i} = factors{i}.getExpSecondMoment();
-        if missing_marg || hetero_noise_modeling(i)
+        if has_missing_marg || hetero_noise_modeling(i)
             E_FACT2elementpairwise{i} = factors{i}.getExpElementwiseSecondMoment();
         elseif my_contains(constraints{i},'sparse','IgnoreCase',true)
             E_FACT2elementpairwise{i} = factors{i}.getExpSecondMomentElem();
@@ -337,6 +336,10 @@ total_realtime = tic;
 total_cputime = cputime;
 
 fprintf('%s\n%s\n%s\n',dline, dheader, dline);
+X = matricizing(X,1);
+R = matricizing(R_obs,1);
+i_mode_unfolded = 1;
+
 while delta_cost>=conv_crit && iter<maxiter || ...
         (iter <= fixed_lambda) || (iter <= fixed_tau)
     iter = iter + 1;
@@ -348,7 +351,12 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         
         % Update factor distribution parameters
         if isempty(dont_update_factor) || ~dont_update_factor(i)
-            factors{i}.updateFactor(i, Xm{i}, Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+            X = f_unfold_i_to_j(X,i_mode_unfolded,i);
+            R = f_unfold_i_to_j(R,i_mode_unfolded,i);
+            i_mode_unfolded = i;
+
+            factors{i}.updateFactor(i, X, R, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+%             factors{i}.updateFactor(i, Xm{i}, Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
         end
         
         % Get the expected value (sufficient statistics)
@@ -364,7 +372,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         % noise modeling) or each element (sparsity) or not at all. 
         % - TODO: If only unimodal factors, then only the exp. elem. moment
         %         is needed (not pairs)..
-        if missing_marg || hetero_noise_modeling(i) % add or all factors are univariate (for space)
+        if has_missing_marg || hetero_noise_modeling(i) % add or all factors are univariate (for space)
             E_FACT2elementpairwise{i} = factors{i}.getExpElementwiseSecondMoment(); 
         elseif my_contains(constraints{i},'sparse','IgnoreCase',true)
             E_FACT2elementpairwise{i} = factors{i}.getExpSecondMomentElem(); 
@@ -408,7 +416,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             if model_lambda && iter > fixed_lambda
                 % Update shared prior
                 if any(hetero_noise_modeling(shared_idx)) ...
-                        || (missing_marg && my_contains(constraints{fsi},'sparse','IgnoreCase',true)) % TODO: Can the second part be removed?
+                        || (has_missing_marg && my_contains(constraints{fsi},'sparse','IgnoreCase',true)) % TODO: Can the second part be removed?
                     % If there is heteroscedastic noise, the expecations
                     % must be without noise!
                     update_contrib = cell(length(shared_idx),1); 
@@ -459,17 +467,19 @@ while delta_cost>=conv_crit && iter<maxiter || ...
     % if any?
     if impute_missing
         % Impute new values
-        X_recon = nmodel(E_FACT);
-        X(~R_imp) = X_recon(~R_imp);
-        for i = 1:Nx
-            Xm{i} = matricizing(X,i);
-        end
+        X_recon = nmodel(E_FACT);  % Dont reconstruct explicitly, if few values.
+        X = unmatricizing(X,i_mode_unfolded,N);
+        X(impute_x) = X_recon(impute_x);
+        clear X_recon
+        X = matricizing(X,i_mode_unfolded);
+%         for i = 1:Nx
+%             Xm{i} = matricizing(X,i);
+%         end
         % Technically not corrected as <x_miss.^2> is wrong.. (missing variance term..)
         if ~any(hetero_noise_modeling)
             SST = sum(X(:).^2); 
         noiseType.SST = SST;
         end
-        
         
         % Calculate prior contribution?
         % - Is this already in SSE??
@@ -492,9 +502,14 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         end
         
         for i = idx
+            X = f_unfold_i_to_j(X,i_mode_unfolded,i);
+            R = f_unfold_i_to_j(R,i_mode_unfolded,i);
+            i_mode_unfolded = i;
+            
             if model_tau && iter > fixed_tau
                 % Update each heteroscedastic noise mode
-                noiseType{i}.updateNoise(Xm{i},Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau);
+%                 noiseType{i}.updateNoise(Xm{i},Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau);
+                noiseType{i}.updateNoise(X,R, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau);
                 Etau{i} = noiseType{i}.getExpFirstMoment();
                 Eln_tau{i} = noiseType{i}.getExpLogMoment();
                 E_FACT{i} = factors{i}.getExpFirstMoment(Etau{i});
@@ -503,7 +518,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             elseif i == noise_final_mode
                 % Don't update the noise, but calculate SSE
                 noiseType{noise_final_mode}.calcSSE(...
-                    Xm{noise_final_mode},Rm{noise_final_mode},...
+                    X,R,...
                     E_FACT, E_FACT2, E_FACT2elementpairwise, Etau);
             end
             
@@ -517,20 +532,25 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         % Cost contribution from the likelihood
         % - calculated for the "noise_final_mode", but includes a
         %   correction for all other modes (i.e. log(det(..)) )
-        idx = 1:ndims(X); idx(noise_final_mode) = [];
+        idx = 1:Nx; idx(noise_final_mode) = [];
         ldnp = Eln_tau{idx(1)};
         for i = idx(2:end)
             ldnp = krsum(Eln_tau{i}, ldnp); % TODO: Ignore modes with no noise
         end
-        ldnp = Rm{noise_final_mode}*ldnp;
+%         ldnp = Rm{noise_final_mode}*ldnp;
+        ldnp = R*ldnp;
         cost = cost + noiseType{noise_final_mode}.calcCost(ldnp);
 
     else % Homoscedastic noise
+        X = f_unfold_i_to_j(X,i_mode_unfolded,1);
+        R = f_unfold_i_to_j(R,i_mode_unfolded,1);
+        i_mode_unfolded = 1;
+        
         if model_tau && iter > fixed_tau
-            noiseType.updateNoise(Xm{1},Rm{1}, E_FACT, E_FACT2, E_FACT2elementpairwise);
+            noiseType.updateNoise(X,R, E_FACT, E_FACT2, E_FACT2elementpairwise);
             Etau = noiseType.getExpFirstMoment();
         else
-            noiseType.calcSSE(Xm{1},Rm{1}, E_FACT, E_FACT2, E_FACT2elementpairwise);
+            noiseType.calcSSE(X,R, E_FACT, E_FACT2, E_FACT2elementpairwise);
         end
         SSE = noiseType.getSSE();
         
