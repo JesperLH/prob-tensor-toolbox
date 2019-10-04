@@ -381,7 +381,8 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         end
         
         % Updates local (factor specific) prior (hyperparameters)
-        if model_lambda && iter > fixed_lambda && ~shares_prior(i)
+        if model_lambda && iter > fixed_lambda && ~shares_prior(i)...
+                && (isempty(dont_update_factor) || ~ dont_update_factor(i))
             if my_contains(constraints{i},'expo','IgnoreCase',true)
                 factors{i}.updateFactorPrior(factors{i}.getExpFirstMoment())
             else
@@ -412,6 +413,10 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         for j = unique(nonzeros(shares_prior(:)))'
             shared_idx = find(shares_prior == j)';
             fsi = shared_idx(1);
+            
+            assert(isempty(dont_update_factor) ||...
+                all(~dont_update_factor(shared_idx)),...
+                'Trying to update shared prior on a fixed factor.. This is not handled atm.')
             
             if model_lambda && iter > fixed_lambda
                 % Update shared prior
