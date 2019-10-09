@@ -296,9 +296,9 @@ end
 lambda_dev = zeros(D,maxiter);
 
 %% If any factors are infinity normed, then run a single update of all factors
-if any(my_contains(constraints, 'infi', 'IgnoreCase', true))
+if any(my_contains(constraints, {'infi','orthogonal'}, 'IgnoreCase', true))
     
-    infty_idx = my_contains(constraints, 'infi', 'IgnoreCase', true);
+    infty_idx = my_contains(constraints, {'infi','orthogonal'}, 'IgnoreCase', true);
     for i = [find(~infty_idx), ...  % First update all non-infty factors
             find(infty_idx)]        % Second update all infty factors
         factors{i}.updateFactor(i, matricizing(X,i), matricizing(R_obs,i), E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
