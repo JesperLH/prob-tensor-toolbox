@@ -1,7 +1,7 @@
 function [X_noisy, actual_snr_dB, avg_noise, P_noise, noise_het] = ...
     addTensorNoise(X,snr_dB, noise_modes, noise_type)
 
-if nargin < 4
+if nargin < 4 || isempty(noise_type)
     noise_type = 'rand';
 end
 
