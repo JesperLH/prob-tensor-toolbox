@@ -103,12 +103,18 @@ assert(ndims(X) == length(hetero_noise_modeling), ' Unknown noise modeling strat
 assert(length(constraints) == ndims(X),...
     'The order of the data is not equal to the number of constraints.')
 
-% The modeling delay time must be lower than the maximum number of iterations
-if maxiter < fixed_lambda
-    fixed_lambda=max(0,maxiter-2);
-end
-if maxiter < fixed_tau
-    fixed_tau=max(0,maxiter-2);
+if D == 1
+    % To avoid getting stuck in initial local optima (VB)
+    fixed_lambda = 0;
+    fixed_tau = 0;
+else
+    % The modeling delay time must be lower than the maximum number of iterations
+    if maxiter < fixed_lambda
+        fixed_lambda=floor(maxiter/2);
+    end
+    if maxiter < fixed_tau
+        fixed_tau=floor(maxiter/2);
+    end
 end
 
 if ~isempty(init_noise) && iscell(init_noise) && ~any(hetero_noise_modeling)
