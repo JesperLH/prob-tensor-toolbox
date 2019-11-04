@@ -27,15 +27,15 @@ if ~isempty(noise_modes)
     for i = 1:ndims(X)
         if noise_modes(i)
             if strcmpi(noise_type,'rand')
-                noise_het{i} = 1./(rand(size(X,i),1)*0.1+0.05);
+                noise_het{i} = (rand(size(X,i),1)*0.1+0.05);
             elseif strcmpi(noise_type,'exp')
-                noise_het{i} = exprnd(6,size(X,i),1);
+                noise_het{i} = exprnd(5,size(X,i),1);
             end
         else
             noise_het{i} = ones(size(X,i),1);
         end
     end
-    noise_unit = noise_unit.*1./nmodel(noise_het);
+    noise_unit = noise_unit.*sqrt(1./nmodel(noise_het));
 end
 
 % Scale noise to achieve desired SNR
