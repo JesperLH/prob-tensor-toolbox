@@ -8,6 +8,7 @@ classdef WishartHyperParameter < HyperParameterInterface
         Winv
         v;
         debug = true;
+        rv_value;
     end
     
     properties (Constant)
@@ -49,15 +50,25 @@ classdef WishartHyperParameter < HyperParameterInterface
         function val = getExpFirstMoment(self, factorsize)
             % Returns the expected value of the first moment (mean)
             % If factorsize is given, then the output is replicated to match.
-            val = self.est_W*self.est_v;
+            if isempty(self.rv_value)
+                val = self.est_W*self.est_v;
+            else
+                val = self.rv_value;
+            end
         end
         
         function val = getExpLogMoment(self, factorsize)
             % Returns the expected value of the logdet moment (mean)
             % If factorsize is given, then the output is replicated to match.
-            D=self.factorsize(2);
-            val = sum(psi((self.est_v+1-(1:D))/2))+D*log(2)...
-                +2*sum(log(diag(chol(self.est_W))));
+            if strcmpi(self.inference_method,'variational')
+                D=self.factorsize(2);
+                val = sum(psi((self.est_v+1-(1:D))/2))+D*log(2)...
+                    +2*sum(log(diag(chol(self.est_W))));
+            elseif strcmpi(self.inference_method,'sampling')
+                val = log(det(self.rv_value));
+                % 2*sum(log(diag(chol(W))))
+            end
+            
         end
         
         function updatePrior(self, eFact2)
@@ -69,18 +80,13 @@ classdef WishartHyperParameter < HyperParameterInterface
             
             %[N, D] = size(eFact2);
             
-            % Select and apply inference method
+            self.est_v = self.v + self.factorsize(1);
+            self.est_W = (self.Winv + eFact2)\eye(size(eFact2,1));
             if strcmpi(self.inference_method,'variational')
-                self.est_v = self.v + self.factorsize(1);
-                self.est_W = (self.Winv + eFact2)\eye(size(eFact2,1));
-                
-                
+                self.rv_value = self.est_W*self.est_v;
             elseif strcmpi(self.inference_method,'sampling')
-                % Gamrnd samples from a gamma distribution with shape (alpha) and
-                % scale (1./ beta)
-                error('Not implemented')
+                self.rv_value = wishrnd(self.est_W, self.est_v);
             end
-            
         end
         
         function cost = calcCost(self)

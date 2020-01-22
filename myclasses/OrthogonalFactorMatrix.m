@@ -3,7 +3,7 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
     %   Detailed explanation goes here
     
     properties (Constant)
-        supported_inference_methods = {'variational'};
+        supported_inference_methods = {'variational','sampling'};
         inference_default='variational';
     end
     
@@ -12,6 +12,8 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
         efactor
         entropy
         init_efactor = false;
+        num_updates = 0;
+        log_volume_stiefel=[];
     end
     
     methods
@@ -22,12 +24,14 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
             obj.distribution = 'von Mises-Fisher Matrix Distribution';
             obj.factorsize = shape;
             
-            obj.inference_method = obj.inference_default;
+            if nargin < 2
+                obj.inference_method = obj.inference_default;
+            else
+                obj.inference_method = inference;
+            end
             obj.hyperparameter = HyperParameterNone(shape);
             
         end
-        
-        
         
         function updateFactor(self, update_mode, Xm, Rm, eFact, ~, ~, eNoise)
                 
@@ -51,19 +55,30 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
                     self.factor = Xmkr;
                 end
                 
-                
                 N = size(Xmkr,1);
                 [UU,SS,VV]=svd(self.factor, 'econ');
                 [f,V,lF]=hyperg(N,diag(SS),3);
                 assert(~isinf(lF))
                 
-                % Get expected value
-                self.efactor = UU*diag(f)*VV';
+                if strcmpi(self.inference_method,'variational')
+                    % Get expected value
+                    if self.num_updates < 1 % Use MAP estimate for the first update. Note the entropy will be wrong..
+                        self.efactor = UU*VV';
+                        self.entropy = -1e+100;
+                    else
+                        self.efactor = UU*diag(f)*VV';
+                        self.entropy = lF-sum(self.factor(:).*self.efactor(:));
+                    end
+                    self.num_updates = self.num_updates + 1;
                 
-                self.entropy = lF-sum(self.factor(:).*self.efactor(:));
-                assert(isreal(self.entropy))
-                
+                    assert(isreal(self.entropy))
+                    
+                 elseif strcmpi(self.inference_method,'sampling')
+                    % Gibbs sampling matrix vMF
+                     self.efactor = self.getSamples(1);                 
+                end           
         end
+        
         
         function updateFactorPrior(self, varargin)
             %pass, the prior is fixed to be uniform across the sphere.
@@ -99,8 +114,12 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
         end
         
         function eFact2elempair = getExpElementwiseSecondMoment(self)
-            [mu, covar] = computeUnfoldedMoments(self.efactor, zeros(size(self.factor,2)));
+            [mu, covar] = computeUnfoldedMoments(self.efactor, []);
             eFact2elempair = mu+covar;
+        end
+        
+        function eContr2Prior = getContribution2Prior(self)
+            eContr2Prior = [];
         end
         
         function cost = calcCost(self)
@@ -123,19 +142,31 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
         function logp = getLogPrior(self)
             % Note the logprior is only 0 when the prior is uniform on the
             % sphere and the volume of the sphere cancels out in logp and
-            % entropy.... TODO!!
+            % entropy (e.g. in variational inference).
             logp = 0;
             
             if strcmpi(self.inference_method,'sampling')
-                logp = nan;
-                warning('Check if log prior is calculated correctly when sampling.')
+                % Only the log(volume) is necessary for a uniform prior (F=0).
+                if isempty(self.log_volume_stiefel)
+                    I=self.factorsize(1); D=self.factorsize(2);
+                    %volume = (2^D * pi^(I*D/2)) / ( pi^(D*(D-1)/4) * (prod(gamma(1/2*(I-(1:D) +1)))) ) ;
+                    self.log_volume_stiefel = D*log(2) + I*D/2*log(pi) - D*(D-1)/4*log(pi) ...
+                        - sum(gammaln(1/2*(I-(1:D) +1) ) );
+                end
+                logp= -self.log_volume_stiefel;
             end
         end
         
-        function samples = getSamples(num_samples)
-            % Simulation of the Matrix Bingham–vonMises–Fisher Distribution,
-            % With Applications toMultivariate and Relational Data
-            error('Not implemented!!')
+        function samples = getSamples(self,num_samples)
+            % Based on
+            % Hoff (2009): Simulation of the Matrix Bingham-von Mises-Fisher Distribution, With Applications to Multivariate and Relational Data
+            % https://rdrr.io/cran/rstiefel/
+            % TODO: Validate current implementation!
+            
+%             warning('Implementation not properly tested yet! Sampling may not work..')
+            num_burnin = max(100, round(num_samples)*0.2);
+            samples = sample_matrix_vonMises_Fisher(self.factor,num_burnin+num_samples);
+            samples = samples(:,:,num_burnin+1:end);
         end
         
     end
