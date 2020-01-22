@@ -102,6 +102,7 @@ defaults = {1e-8, 500, ...
 assert(ndims(X) == length(hetero_noise_modeling), ' Unknown noise modeling strategy')
 assert(length(constraints) == ndims(X),...
     'The order of the data is not equal to the number of constraints.')
+hetero_noise_modeling = logical(hetero_noise_modeling);
 
 if D == 1
     % To avoid getting stuck in initial local optima (VB)
@@ -144,6 +145,8 @@ inference_scheme = strtrim(inference_scheme);
 [inference_scheme, noise_inference ] = processAndValidateInferenceSchemes(...
     inference_scheme, ndims(X) );
 only_variational_inference = all(all(strcmpi('variational',inference_scheme)));
+some_variables_are_sampled = any(any(strcmpi('sampling',inference_scheme)));
+all_samples = cell(ndims(X)+1, 2);
 
 %% Initialize the factor matrices and noise
 R_obs=logical(true-isnan(X)); % Set observed (true) or not observed (false) status.
@@ -178,6 +181,7 @@ Xm = cell(Nx,1);
 Rm = cell(Nx,1);
 E_FACT = cell(Nx,1);
 E_FACT2 = cell(Nx,1);
+E_Contribution2FactorPrior = cell(Nx,1);
 E_Lambda = cell(Nx,1);
 
 for i = 1:Nx  % Setup each factor
@@ -243,17 +247,28 @@ for i = 1:Nx
     end
 end
 
+% Initialize Factor Contribution to Prior Updates 
+for i = 1:Nx
+   if my_contains(constraints{i},'sparse','IgnoreCase',true)
+        E_Contribution2FactorPrior{i} = E_FACT2elementpairwise{i}; 
+   else
+        E_Contribution2FactorPrior{i} = E_FACT2{i};
+   end
+    
+end
+
 % Initialize noise (homo- or heteroscedastic)
 if any(hetero_noise_modeling) % Does any modes have heteroscedastic noise
-    assert(~any(my_contains(constraints,'orth')), 'Heteroscedastic noise modelling is not supported in the presence of orthogonal factors.')
+    %assert(~any(my_contains(constraints,'orth')), 'Heteroscedastic noise modelling is not supported in the presence of orthogonal factors.')
+    assert(~any(my_contains(constraints,'orth') & hetero_noise_modeling), 'Heteroscedastic noise modelling is not supported on orthogonal factors.')
+    
     noiseType = cell(Nx,1);
     Etau = cell(Nx,1);
     Eln_tau = cell(Nx,1);
     for i = 1:Nx
         if hetero_noise_modeling(i) % Mode-i has heteroscedastic noise
             noiseType{i} = GammaNoiseHeteroscedastic(...
-                i, X,R_obs, tau_alpha0, tau_beta0, noise_inference,...
-                ~my_contains(constraints,'normal','IgnoreCase',true)); % % TODO: Remove reliance on isUnivariateFactor..
+                i, X,R_obs, tau_alpha0, tau_beta0, noise_inference);
                        
             % Initialize noise specified by user (if provided)
             if ~isempty(init_noise) && ~isempty(init_noise{i})
@@ -281,8 +296,7 @@ if any(hetero_noise_modeling) % Does any modes have heteroscedastic noise
     
 else
     % Homoscedastic noise
-    noiseType = GammaNoise(X,R_obs, tau_alpha0, tau_beta0, noise_inference, ...
-        ~my_contains(constraints,'normal','IgnoreCase',true)); % % TODO: Remove reliance on isUnivariateFactor..
+    noiseType = GammaNoise(X,R_obs, tau_alpha0, tau_beta0, noise_inference);
     % Initialize noise specified by user (if provided)
     if ~isempty(init_noise)
         if isobject(init_noise) && strcmp(class(noiseType), class(init_noise))
@@ -331,7 +345,7 @@ dheader = sprintf(' %16s | %16s | %16s | %16s | %16s | %16s | %16s |','Iteration
     'Cost', 'rel. \Delta cost', 'Noise (s.d.)', 'Var. Expl.', 'Time (sec.)', 'Time CPU (sec.)');
 dline = repmat('------------------+',1,7);
 
-%% Start Alternating Least Squares Optimization
+%% Start Inference Procedure (Optimization, Sampling, or both)
 iter = 0;
 old_cost = -inf;
 delta_cost = inf;
@@ -373,6 +387,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             E_FACT{i} = factors{i}.getExpFirstMoment();
             E_FACT2{i} = factors{i}.getExpSecondMoment();
         end
+        E_Contribution2FactorPrior{i} = factors{i}.getContribution2Prior();
 
         % Calculate the expected second moment between pairs (missing,
         % noise modeling) or each element (sparsity) or not at all. 
@@ -389,15 +404,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         % Updates local (factor specific) prior (hyperparameters)
         if model_lambda && iter > fixed_lambda && ~shares_prior(i)...
                 && (isempty(dont_update_factor) || ~ dont_update_factor(i))
-            if my_contains(constraints{i},'expo','IgnoreCase',true)
-                factors{i}.updateFactorPrior(factors{i}.getExpFirstMoment())
-            else
-                if my_contains(constraints{i},'sparse','IgnoreCase',true)
-                    factors{i}.updateFactorPrior(factors{i}.getExpSecondMomentElem())
-                else
-                    factors{i}.updateFactorPrior(factors{i}.getExpSecondMoment())
-                end
-            end
+            factors{i}.updateFactorPrior(E_Contribution2FactorPrior{i})
             E_Lambda{i} = priors{i}.getExpFirstMoment();
         end
         
@@ -414,53 +421,22 @@ while delta_cost>=conv_crit && iter<maxiter || ...
     end
     
     %% Updates shared priors (hyperparameters)
-    % - TODO: Make more readable and remove redundancy (if possible)
     if any(shares_prior)
         for j = unique(nonzeros(shares_prior(:)))'
             shared_idx = find(shares_prior == j)';
             fsi = shared_idx(1);
+       
+%             assert(isempty(dont_update_factor) ||...
+%                 all(~dont_update_factor(shared_idx)),...
+%                 'Trying to update shared prior on a fixed factor.. This is not handled atm.')
             
-            assert(isempty(dont_update_factor) ||...
-                all(~dont_update_factor(shared_idx)),...
-                'Trying to update shared prior on a fixed factor.. This is not handled atm.')
-            
-            if model_lambda && iter > fixed_lambda
+            if model_lambda && iter > fixed_lambda && ...
+                    (isempty(dont_update_factor) ||...
+                    all(~dont_update_factor(shared_idx)))
                 % Update shared prior
-                if any(hetero_noise_modeling(shared_idx)) ...
-                        || (has_missing_marg && my_contains(constraints{fsi},'sparse','IgnoreCase',true)) % TODO: Can the second part be removed?
-                    % If there is heteroscedastic noise, the expecations
-                    % must be without noise!
-                    update_contrib = cell(length(shared_idx),1); 
-                    distr_constr = zeros(length(shared_idx),1);
-                    for k = 1:length(shared_idx)
-                        if my_contains(constraints{shared_idx(k)},'expo','IgnoreCase',true)
-                            update_contrib{k} = factors{shared_idx(k)}.getExpFirstMoment();
-                            distr_constr(k) = 1;
-                        else
-                            distr_constr(k) = 0.5;
-                            if my_contains(constraints{shared_idx(k)},'sparse','IgnoreCase',true)
-                                update_contrib{k} = factors{shared_idx(k)}.getExpSecondMomentElem();
-                            else
-                                update_contrib{k} = factors{shared_idx(k)}.getExpSecondMoment();
-                            end
-                        end
-                    end
-                    factors{fsi}.updateFactorPrior(update_contrib, distr_constr);
-                    %clear update_contrib
-                else
-                    % Estimates do not contain noise precision
-                    distr_const = -ones(length(shared_idx),1);
-                    idx_expo = my_contains(constraints(shared_idx),'expo','IgnoreCase',true);
-                    distr_const(idx_expo) = 1;
-                    distr_const(~idx_expo) = 0.5;
-                    if my_contains(constraints{fsi},'sparse','IgnoreCase',true)
-                        factors{fsi}.updateFactorPrior([E_FACT(shared_idx(idx_expo)); E_FACT2elementpairwise(shared_idx(~idx_expo))],...
-                            [distr_const(idx_expo); distr_const(~idx_expo)]);
-                    else
-                        factors{fsi}.updateFactorPrior([E_FACT(shared_idx(idx_expo)); E_FACT2(shared_idx(~idx_expo))],...
-                            [distr_const(idx_expo); distr_const(~idx_expo)]);
-                    end
-                end
+                distr_constr = 0.5*ones(length(shared_idx),1); % Normal or truncated normal
+                distr_constr(my_contains(constraints(shared_idx),'expo','IgnoreCase',true)) = 1;
+                factors{fsi}.updateFactorPrior(E_Contribution2FactorPrior(shared_idx), distr_constr);
             end
             
             %Get cost for the shared prior and each factor.
@@ -588,7 +564,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         
         if any(hetero_noise_modeling)
             fprintf(' %16i | %16.4e | %16.4e | %16.4e | %16.4f | %16.4f | %16.4f |\n',...
-                            iter, cost, delta_cost, 1/sqrt(median(cat(1,Etau{:}))), Evarexpl(iter), time_tic_toc,...
+                            iter, cost, delta_cost, 1/sqrt(median(cat(1,Etau{hetero_noise_modeling}))), Evarexpl(iter), time_tic_toc,...
                             time_cpu);
 
         else
@@ -612,6 +588,25 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         delta_cost = abs(delta_cost);
     end
     
+    %% Save samples
+    if some_variables_are_sampled
+        for i = 1:Nx
+            if strcmpi(inference_scheme{i,1},'sampling')
+                all_samples{i,1}(:,:,maxiter-iter+1) = E_FACT{i}; % factor
+            end
+            
+            if strcmpi(inference_scheme{i,2},'sampling') && ~isempty(E_Lambda{i})
+                all_samples{i,2}(:,:,maxiter-iter+1) = E_Lambda{i}; % precision prior
+            end
+        end
+        if strcmpi(noise_inference, 'sampling')
+            if any(hetero_noise_modeling)
+                all_samples{end,1}(:,maxiter-iter+1) = cat(1,Etau{:}); % noise
+            else
+                all_samples{end,1}(maxiter-iter+1) = Etau; % noise
+            end
+        end
+    end
     %% Save some stuff for diagnostics.
     if all(size(E_Lambda{2}(:))==[D,1])
         lambda_dev(:,iter) = E_Lambda{2}(:);
@@ -644,7 +639,7 @@ Lowerbound(iter+1:end)=[];
 % 
 % rms(X_recon(:)-X_recon2(:))
 
-if nargout > 3
+% if nargout > 3 % TODO: Investigate if evalc('') does not provide nargout.
    model.factors = factors;
    model.priors = priors;
    model.noise = noiseType;
@@ -655,7 +650,7 @@ if nargout > 3
    model.realtime = total_realtime;
    model.cputime = total_cputime;
    model.lambda_dev = lambda_dev;
-end
+% end
 
 if any(hetero_noise_modeling)
     for i = 1:Nx

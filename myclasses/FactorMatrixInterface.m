@@ -43,6 +43,7 @@ classdef (Abstract) FactorMatrixInterface < handle
         getExpSecondMoment(self)
         getExpSecondMomentElem(self)        % Only for sparse and missing elements
         getExpElementwiseSecondMoment(self) % Only for missing elements and heteroscedastic noise
+        getContribution2Prior(self);
         
         % Get stuff related to cost contribution
         getEntropy(self)
