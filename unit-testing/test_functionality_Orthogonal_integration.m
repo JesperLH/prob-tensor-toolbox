@@ -71,6 +71,7 @@ classdef test_functionality_Orthogonal_integration < matlab.unittest.TestCase
                 idx = randperm(numel(X));
                 X(idx(1:round(numel(X)*0.1))) = nan;
             end
+            X = X/(var(X(:))^(1/ndims(X))); % Remove scale of the data.
             
             [text,A,A2,L,elbo] = evalc(['VB_CP_ALS(X, D, valid_constr, ', ... % Required input
                 '''maxiter'', 50, ''conv_crit'', 1e-7, ', ...
