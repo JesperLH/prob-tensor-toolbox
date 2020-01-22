@@ -2,7 +2,8 @@
 addpath(genpath('./myclasses'))
 addpath(genpath('./tools'))
 addpath('./myMatlab/')
-addpath('../thirdparty-matlab/trandn/') % Download from http://www.models.life.ku.dk/nwaytoolbox
+addpath('./tools/trandn/')
+addpath('../thirdparty-matlab/nway331/') % Download from http://www.models.life.ku.dk/nwaytoolbox
 
 Ndims = [50,49, 48]; D = 5;
 constr = {'normal ard','nonneg sparse','normal constr'}; 
