@@ -21,6 +21,8 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
         factor_sig2;    % variance parameter in tnorm
         
         optimization_method;
+        
+        prior_mean=[];
     end
     
     properties (Access = protected)
@@ -53,7 +55,8 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                 obj.inference_method = obj.inference_default;
             end
             
-            
+%             obj.prior_mean = rand(shape);
+
         end
         
         function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2elem, eNoise)
@@ -83,26 +86,59 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
         
         function eFact2 = getExpSecondMoment(self, eNoise)
             if nargin == 1
-                eFact2 = self.factor'*self.factor+diag(sum(self.factor_var,1));
+                eFact2 = self.factor'*self.factor;
+                
+                if strcmpi(self.inference_method,'variational')
+                    eFact2 = eFact2 + diag(sum(self.factor_var,1));
+                end
+                
             elseif nargin == 2
-                eFact2 = bsxfun(@times,self.factor,sqrt(eNoise))'*bsxfun(@times,self.factor,sqrt(eNoise))...
-                    +diag(sum(self.factor_var.*eNoise,1));
+                % Heteroscedastic noise
+                eFact2 = bsxfun(@times,self.factor,sqrt(eNoise))'...
+                    *bsxfun(@times,self.factor,sqrt(eNoise));...
+                    
+                if strcmpi(self.inference_method,'variational')
+                    eFact2 = eFact2 + diag(sum(self.factor_var.*eNoise,1));
+                end
             end
             
         end
         
         function eFact2elem = getExpSecondMomentElem(self, eNoise)
-            if nargin == 1
+            if strcmpi(self.inference_method,'variational')
                 eFact2elem = self.factor.^2+self.factor_var;
-
-            elseif nargin == 2
-                eFact2elem = bsxfun(@times, self.factor.^2+self.factor_var, eNoise);
+            else % Sampling
+                eFact2elem = self.factor.^2;
+            end
+            
+            % Heteroscedastic noise
+            if nargin == 2
+                eFact2elem = bsxfun(@times, eFact2elem, eNoise);
             end
         end
         
         function eFact2elempair = getExpElementwiseSecondMoment(self)
-            [mu, covar] = computeUnfoldedMoments(self.factor,self.factor_var);
+            if strcmpi(self.inference_method,'variational')
+                [mu, covar] = computeUnfoldedMoments(self.factor,self.factor_var);
+            else
+                [mu, covar] = computeUnfoldedMoments(self.factor,[]);
+            end
             eFact2elempair = mu+covar;
+        end
+        
+        function eContr2Prior = getContribution2Prior(self)
+            if strcmpi(self.hyperparameter.prior_property,'sparse')
+                eContr2Prior = self.getExpSecondMomentElem();
+                if ~isempty(self.prior_mean)
+                    eContr2Prior = eContr2Prior - 2*self.factor.*self.prior_mean + self.prior_mean.*self.prior_mean;
+                end
+            else
+                eContr2Prior = self.getExpSecondMoment();
+                if ~isempty(self.prior_mean)
+                    eContr2Prior = eContr2Prior - 2*diag(sum(self.factor.*self.prior_mean,1)) + diag(sum(self.prior_mean.*self.prior_mean,1));
+                end
+            end 
+            
         end
         
         function cost = calcCost(self)
@@ -145,17 +181,16 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
             % Gets the prior contribution to the cost function.
             % Note. The hyperparameter needs to be updated before calculating
             % this.
-            logp = numel(self.factor)*(-log(1/2)-1/2*log(2*pi))...
+            logp = numel(self.factor)*(-1/2*log(2*pi) - truncNorm_logZ(self.lowerbound,self.upperbound,0,1))...
                 +1/2*sum(self.hyperparameter.prior_log_value(:))...
                 *numel(self.factor)/prod(self.hyperparameter.prior_size)...
                 -1/2*sum(sum(bsxfun(@times, self.hyperparameter.getExpFirstMoment() , self.getExpSecondMomentElem())));
-            %TODO: Can we use self.getExpSecondMoment() instead?
             
-            if strcmpi(self.inference_method,'sampling')
-                logp = numel(self.factor)*log(1/2)...
-                    -sum(self.logZhatOUT(:));
-                warning('Check if log prior is calculated correctly when sampling.')
+            if ~isempty(self.prior_mean)
+                logp = logp -1/2*sum(sum(bsxfun(@times, self.hyperparameter.getExpFirstMoment() , self.prior_mean.^2)))... % Here <mu.^2> is needed
+                    +sum(sum(bsxfun(@times, self.hyperparameter.getExpFirstMoment() , self.prior_mean.*self.getExpFirstMoment()))); % here only <mu>
             end
+
         end
         
         function samples = getSamples(self, num_samples)
@@ -237,9 +272,6 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                 kr2_sum = Rm*kr2_;
                 
                 krkr=[];
-                %[Rkrkr, IND] =
-                %premultiplication(Rm,kr,size(eFact{update_mode},2)); % Not
-                %used...
                 Rkrkr = []; IND = [];
                 
                 if ~isempty(eFact2pairwise{end})
@@ -272,9 +304,6 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                     kr = bsxfun(@rdivide, kr, sqrt(noise_));
                 end
                 
-                %krkr=kr'*kr; %% This is wrong, as it does not have the
-                %variance! (Which is an issue if not all factors are
-                %univariate...)
                 krkr = ones(D,D);
                 for i = ind
                     krkr = krkr .* eFact2{i};
@@ -348,6 +377,15 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                 mu= (Xmkr(:,d)-self.factor(:,not_d)*krkr(not_d,d))...
                     .*eNoise.*self.factor_sig2(:,d);
             end
+            if ~isempty(self.prior_mean)
+                e_lambda = self.hyperparameter.getExpFirstMoment();
+                
+                if isscalar(e_lambda)
+                    mu = mu + e_lambda*self.prior_mean(:,d).*self.factor_sig2(:,d);
+                else
+                    mu = mu + e_lambda(:,d).*self.prior_mean(:,d).*self.factor_sig2(:,d);
+                end
+            end
             assert(~any(isinf(mu(:))),'Infinite mean value?')
         end
         
@@ -367,7 +405,10 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                     [self.logZhatOUT(:,d), ~ , self.factor(:,d), self.factor_var(:,d) ] = ...
                         truncNormMoments_matrix_fun(lb, ub, mu , repmat(self.factor_sig2(:,d),length(mu),1));
                 end
-                self.factor_var(~(self.factor_var(:,d)>=0),d) = eps; % potential fix? what is Hore et al. doing?
+%                 if ~(self.factor_var(:,d)>=0)
+                    self.factor_var(~(self.factor_var(:,d)>=0),d) = eps; % potential fix for infinite variance? what is Hore et al. doing?
+                    
+%                 end
                 assert(all(self.factor_var(:,d)>=0))
                 
             elseif strcmpi(self.inference_method, 'sampling')
@@ -376,7 +417,7 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                 self.factor(:,d) = trandn( (lb-mu)./sig, (ub-mu)./sig ).*sig+mu;
 
                 self.factor_var = 0; % The variance of 1 sample is zero
-                self.logZhatOUT(:,d) = truncNorm_logZ(lb, ub, mu , self.factor_sig2(:,d));
+                %self.logZhatOUT(:,d) = truncNorm_logZ(lb, ub, mu , self.factor_sig2(:,d));
             end
         end
         

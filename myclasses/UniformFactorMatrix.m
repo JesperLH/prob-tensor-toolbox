@@ -29,6 +29,7 @@ classdef UniformFactorMatrix < TruncatedNormalFactorMatrix
             obj.distribution = sprintf('Elementwise Uniform(%f,%f) Distribution',...
                 obj.lowerbound, obj.upperbound);
             
+            obj.prior_mean = [];
         end
         
         function updateFactorPrior(self, ~)

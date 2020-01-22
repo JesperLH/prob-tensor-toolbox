@@ -3,15 +3,17 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
     %   Detailed explanation goes here
     
     properties (Constant)
-        supported_inference_methods = {'variational'};
+        supported_inference_methods = {'variational','sampling'};
         inference_default='variational';
+        
     end
     
     % Attributes that are only relevant to this class and subclasses
     properties (Access = protected)
         observations_share_prior;
         debug=true;
-        covariance
+        covariance;
+        prior_mean=[];
     end
     
     methods
@@ -26,10 +28,11 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
             obj.data_has_missing = has_missing;
            
             obj.distribution = 'Multivariate Normal Distribution';
-            assert(strcmpi(inference,obj.inference_default), ' Specified inference procedure is available (%s)', inference)
-            obj.inference_method = obj.inference_default;
+            assert(any(strcmpi(inference,obj.supported_inference_methods)),...
+                ' Specified inference procedure is not available (%s)', inference)
+            obj.inference_method = inference;
             
-            
+%             obj.prior_mean = randn(shape);            
         end
         
         function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2pairwise, eNoise)
@@ -82,7 +85,7 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                 elseif isvector(ePrior)
                     ePrior = diag(ePrior);
                 elseif ismatrix(ePrior)
-                    ePrior = ePrior;
+                    %pass, as ePrior = ePrior;
                 else
                     error('The first moment of the prior has an unexpected form.')
                 end
@@ -108,11 +111,21 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                         @mtimes, self.covariance, permute(Xmkr,[2,3,1])), ...
                         [3,1,2]));
                 end
-                % TODO: Update using sampling
+                
+                if ~isempty(self.prior_mean)
+                    self.factor = self.factor + squeeze(my_pagefun(@mtimes,...
+                        self.covariance, permute(self.prior_mean*ePrior,[2,3,1])))';
+                end
+                
             else
                 error('not implemented')
             end
-
+            
+            % Gibbs sampling: Generate a single sample from the distribution.
+            if strcmpi(self.inference_method,'sampling')
+               self.factor = mvnrnd(self.factor,self.covariance);
+               self.covariance = 0;
+            end
         end       
         
         function updateFactorPrior(self, eFact2, distr_constr)
@@ -135,40 +148,91 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
         end
         
         function eFact2 = getExpSecondMoment(self, eNoise)
-            if self.observations_share_prior && nargin == 1
-                if ~self.data_has_missing && ismatrix(self.covariance)
-                    eFact2 = self.covariance*self.factorsize(1)...
-                        + symmetrizing(self.factor'*self.factor, self.debug);
+            if self.observations_share_prior
+                
+                % Always include the first moment or a single sample 
+                if nargin == 1
+                   eFact2 = symmetrizing(self.factor'*self.factor, self.debug); 
+                elseif nargin == 2
+                    eFact2 = symmetrizing(self.factor'*diag(eNoise)*self.factor, self.debug);
                 else
-                    eFact2 = sum(self.covariance,3)...
-                        + symmetrizing(self.factor'*self.factor, self.debug);
+                    eFact2 = [];
+                end      
+                
+                % Include estimated covariance
+                if strcmpi(self.inference_method,'variational')
+                    if nargin == 1
+                        if size(self.covariance,3)>1
+                            eFact2 = eFact2 + sum(self.covariance,3);
+                        else
+                            eFact2 = eFact2 + self.covariance*self.factorsize(1);
+                        end
+                    elseif nargin == 2
+                        eFact2 = eFact2 + sum(bsxfun(@times,... % Heteroscedastic noise
+                            self.covariance, permute(eNoise,[2,3,1])),3);
+                    end
                 end
-            elseif nargin == 2
-                eFact2 = sum(...
-                          bsxfun(@times, self.covariance, permute(eNoise,[2,3,1]))... % Heteroscedastic noise
-                          ,3)...
-                        + symmetrizing(self.factor'*diag(eNoise)*self.factor, self.debug);
-            else
-                eFact2 = [];
+                          
             end
+%                 if ~self.data_has_missing && ismatrix(self.covariance)
+%                     eFact2 = self.covariance*self.factorsize(1)...
+%                         + symmetrizing(self.factor'*self.factor, self.debug);
+%                 else
+%                     eFact2 = sum(self.covariance,3)...
+%                         + symmetrizing(self.factor'*self.factor, self.debug);
+%                 end
+%             elseif nargin == 2
+%                 eFact2 = sum(...
+%                           bsxfun(@times, self.covariance, permute(eNoise,[2,3,1]))... % Heteroscedastic noise
+%                           ,3)...
+%                         + symmetrizing(self.factor'*diag(eNoise)*self.factor, self.debug);
+%             else
+%                 eFact2 = [];
+%             end
         end
         
         function eFact2elem = getExpSecondMomentElem(self, eNoise)
-            if size(self.covariance,3) == 1
-                eFact2elem = bsxfun(@plus,self.factor.^2, diag(self.covariance)');
-            else
-                [~,D,N] = size(self.covariance);
-                eFact2elem = self.factor.^2 + ...
-                    self.covariance(bsxfun(@plus,[1:D+1:D*D]',[0:N-1]*D*D))'; %#ok<NBRAK>
+            % First moment or sample
+            eFact2elem = self.factor.^2;
+            
+            % Include estimated covariance
+            if strcmpi(self.inference_method,'variational')
+                if size(self.covariance,3) == 1
+                    eFact2elem = bsxfun(@plus,eFact2elem, diag(self.covariance)');
+                else
+                    [~,D,N] = size(self.covariance);
+                    eFact2elem = eFact2elem + ...
+                        self.covariance(bsxfun(@plus,[1:D+1:D*D]',[0:N-1]*D*D))'; %#ok<NBRAK>
+                end
             end
-
+            
+            % Multiply by heteroscedastic noise
             if nargin == 2
                 eFact2elem = bsxfun(@times, eFact2elem, eNoise);
             end
         end
         
+        function eContr2Prior = getContribution2Prior(self)
+            
+            if strcmpi(self.hyperparameter.prior_property,'sparse')
+                error('Not implemented')
+            else
+                eContr2Prior = self.getExpSecondMoment();
+                if ~isempty(self.prior_mean)
+                    eContr2Prior = eContr2Prior + self.prior_mean'*self.prior_mean...
+                        - symmetrizing(self.factor'*self.prior_mean + self.prior_mean'*self.factor);
+                    
+                end
+            end 
+            
+        end
+        
         function eFact2elempair = getExpElementwiseSecondMoment(self)
-            [mu, covar] = computeUnfoldedMoments(self.factor, permute(self.covariance,[3,1,2]));
+            if strcmpi(self.inference_method,'variational')
+                [mu, covar] = computeUnfoldedMoments(self.factor, permute(self.covariance,[3,1,2]));
+            else
+                [mu, covar] = computeUnfoldedMoments(self.factor, []);
+            end
             eFact2elempair = mu+covar;
         end
         
@@ -198,7 +262,6 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                             +self.factorsize(2)/2*(1+log(2*pi));
                     end
                 end
-                
                 
             else
                 entropy = nan;
@@ -232,13 +295,19 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                 else
                     error('Unknown prior form.')
                 end
+                
+                if ~isempty(self.prior_mean)
+                    if isvector(ePrior)
+                        logp = logp -1/2*sum(sum(bsxfun(@times, ePrior , self.prior_mean.^2)))... % Here <mu.^2> is needed
+                                +sum(sum(bsxfun(@times, ePrior , self.prior_mean.*self.getExpFirstMoment()))); % here only <mu>
+                    else
+                        logp = logp -1/2*sum(sum(bsxfun(@times, ePrior , self.prior_mean'*self.prior_mean)))... % Here <mu.^2> is needed
+                                +sum(sum(bsxfun(@times, ePrior , self.prior_mean'*self.getExpFirstMoment()))); % here only <mu>
+                    end
+                end
+                
             else
                 logp=nan;
-            end
-            
-            if strcmpi(self.inference_method,'sampling')
-                logp = nan;
-                warning('Check if log prior is calculated correctly when sampling.')
             end
         end
         

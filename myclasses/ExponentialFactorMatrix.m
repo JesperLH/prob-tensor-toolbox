@@ -25,7 +25,7 @@ classdef ExponentialFactorMatrix < TruncatedNormalFactorMatrix
                 obj.inference_method = obj.inference_default;
             end
             
-            
+            obj.prior_mean = [];
         end
         
         function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2elem, eNoise)
@@ -37,6 +37,10 @@ classdef ExponentialFactorMatrix < TruncatedNormalFactorMatrix
                 error('Unknown optimization method')
             end
             
+        end
+        
+        function eContr2Prior = getContribution2Prior(self)
+                eContr2Prior = self.getExpFirstMoment();
         end
         
         %function entro = getEntropy(self)
