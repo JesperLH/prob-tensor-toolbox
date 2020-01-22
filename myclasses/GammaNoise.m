@@ -19,13 +19,12 @@ classdef GammaNoise < NoiseInterface
     properties %(Access = private)
         est_beta;
         est_alpha;
-        isFactorUnivariate;
     end
     
     methods
         
         function obj = GammaNoise(X, R, usr_hp_alpha, usr_hp_beta,...
-                inference_method, isFactorUnivariate)
+                inference_method)
             
             if isempty(R)
                 obj.number_of_elements = numel(X);
@@ -47,15 +46,7 @@ classdef GammaNoise < NoiseInterface
             
             
             obj.est_alpha = obj.hp_alpha;
-            obj.est_beta = obj.hp_beta;
-            
-            if exist('isFactorUnivariate','var')
-                obj.isFactorUnivariate = isFactorUnivariate;
-                assert(length(isFactorUnivariate) == ndims(X),'Must be specified for each factor');
-            else
-                obj.isFactorUnivariate = true(ndims(X),1);
-            end
-            
+            obj.est_beta = obj.hp_beta;            
             
             if exist('inference_method','var')
                 obj.inference_method = inference_method;

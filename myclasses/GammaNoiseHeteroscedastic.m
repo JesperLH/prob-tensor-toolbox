@@ -20,13 +20,12 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
     properties (Access = private)
         est_beta;
         est_alpha;
-        isFactorUnivariate;
     end
     
     methods
         
         function obj = GammaNoiseHeteroscedastic(noise_mode, X, R, usr_hp_alpha, usr_hp_beta,...
-                inference_method, isFactorUnivariate)
+                inference_method)
             
             if isempty(R)
                 obj.number_of_elements = numel(X)/size(X,noise_mode); % Number of elements for each obs in noise_mode
@@ -44,22 +43,11 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
                 obj.hp_beta = usr_hp_beta;
             end
             
-            
             obj.est_alpha = repmat(obj.hp_alpha, size(X,noise_mode), 1);
             obj.est_beta = repmat(obj.hp_beta, size(X,noise_mode), 1);
             
             obj.noise_value = obj.est_alpha./obj.est_beta;
-            obj.noise_log_value = psi(obj.est_alpha)-log(obj.est_beta);
-            
-            
-            
-            if exist('isFactorUnivariate','var')
-                obj.isFactorUnivariate = isFactorUnivariate;
-                assert(length(isFactorUnivariate) == ndims(X),'Must be specified for each factor');
-            else
-                obj.isFactorUnivariate = true(ndims(X),1);
-            end
-            
+            obj.noise_log_value = psi(obj.est_alpha)-log(obj.est_beta);            
             
             if exist('inference_method','var')
                 obj.inference_method = inference_method;
@@ -266,11 +254,7 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
                 if self.has_missing_values
 %                     kr2=krprod(eFact2{i}, kr2);
                 else
-%                     if self.isFactorUnivariate(i)
-%                         krkr=krkr.*((eFact{i}'*eFact{i}).*(ones(D)-eye(D))+diag(sum(eFact2{i},1)));
-%                     else
                         krkr = krkr.*eFact2{i};
-%                     end
                 end
             end
         end
@@ -282,13 +266,6 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
                 +sum(gammaln(self.est_alpha)...
                 );
             
-%             entropy_contr =sum(...
-%                 -log(self.est_beta)...
-%                 +self.est_alpha...
-%                 -(self.est_alpha-1).*psi(self.est_alpha)...
-%                 +gammaln(self.est_alpha)...
-%                 );
-
         end
         
         function prior_contr = calcPrior(self)
