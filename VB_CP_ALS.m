@@ -1,4 +1,4 @@
-function [E_FACT,E_FACT2, E_Lambda, Lowerbound, model]=VB_CP_ALS(X,D,constraints,varargin)
+function [E_FACT,E_FACT2, E_Lambda, Lowerbound, model,all_samples]=VB_CP_ALS(X,D,constraints,varargin)
 %VB_CP_ALS Fits a Candecomp/PARAFAC (CP) tensor decomposition model to "X"
 % with "D" components (rank) and subject to the supplied "constraints".
 % INPUTS:
