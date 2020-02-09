@@ -3,3 +3,4 @@
 *.out
 *.err
 temp.mat
+demo_toolbox_paper/*eps
