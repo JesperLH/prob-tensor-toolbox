@@ -35,10 +35,11 @@ for i = 1:ndims(X)
 end
 
 % Determine which noise estimates are fixed
-if isscalar(use_trained_noise)
+if isscalar(use_trained_noise) || ~any(use_trained_noise)
     if use_trained_noise
         trained_noise = trained_model.noise;
     end
+    noise_scheme = false(1,ndims(X));
 else
     trained_noise = cell(ndims(X),1);
     for i = 1:ndims(X)
@@ -46,17 +47,18 @@ else
             trained_noise{i} = trained_model.noise{i};
         end
     end
+    noise_scheme = ~arrayfun(@isempty,trained_model.noise);
 end
 
-if sum(use_trained_noise)==0
-    trained_noise = [];
-end
+% if sum(use_trained_noise)==0
+%     trained_noise = [];
+% end
 
 % Specify model options
 model_options = {varargin{:}, ... % Pass all input arguments to VB_CP_ALS
                 'fix_factors', use_trained_factors, 'init_factors', trained_factors,...
                 'fix_noise', use_trained_noise, 'init_noise', trained_noise,...
-                'noise',~arrayfun(@isempty,trained_model.noise)};
+                'noise',noise_scheme};
 
 D_train = trained_model.factors{1}.factorsize(2); % Components fit during training
 
