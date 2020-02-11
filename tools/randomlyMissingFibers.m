@@ -26,7 +26,9 @@ while n_elements_to_remove > 0
     if nargin < 3 || isempty(i_mode_missing)
         i_mode = randi(n_modes);
     else
-        i_mode = i_mode_missing; % always remove fibers from this mode.
+        % always remove fibers from this (or these) mode(s).
+        idx_rand = randperm(length(i_mode_missing));
+        i_mode = i_mode_missing(idx_rand(1)); 
     end
     
     % Get random indices for the remaining modes
@@ -50,7 +52,13 @@ while n_elements_to_remove > 0
         X_train(idx{:}) = data(idx{:});
         num_failed_tries = num_failed_tries+1;
     end
-    assert(num_failed_tries < 100, 'Could not generated a vaild missing pattern.')
+    if num_failed_tries > 100
+        warning('Cound not generated valid missing pattern! Returning empty arrays')
+        X_train=[];
+        X_test=[];
+        return
+    end
+%     assert(num_failed_tries < 100, 'Could not generated a vaild missing pattern.')
 end
 
 end

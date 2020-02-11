@@ -1,5 +1,5 @@
 function [train_err, test_err] = demo_missing_analysis(...
-    data,D_est,range_miss_fraction)
+    data,D_est,range_miss_fraction,data_scenario)
 
 if nargin < 1
     % Generate synthetic data
@@ -11,14 +11,18 @@ if nargin < 1
     range_miss_fraction = 0:0.3:0.9;
 end
 
+if nargin < 4
+    data_scenario=[];
+end
+
 miss_schemes = {'Missing Elements', 'Missing Fibers'};
 model_schemes = {'Variational', 'Sampling'};
 
-algo_inputs = {'maxiter',500,'conv_crit',1e-8};
+algo_inputs = {'maxiter',500,'conv_crit',1e-7};
 algo_constr = {'normal ard', 'normal ard', 'normal ard'};
 
 % Res
-train_err = zeros(length(range_miss_fraction),length(miss_schemes),...
+train_err = nan(length(range_miss_fraction),length(miss_schemes),...
     length(model_schemes),2);
 test_err = nan(size(train_err));
 
@@ -33,14 +37,30 @@ for i_sc = 1:length(miss_schemes)
             X_test = data; X_test(idx_train)=nan;
             
         elseif contains(miss_schemes{i_sc},'fibers','IgnoreCase',true)
-            [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss));
+            if ~isempty(data_scenario)
+                Nx = size(data);
+                if strcmpi(data_scenario,'allendata')
+                    % Randomly missing geneset for some area and subject
+                    [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),1);
+                elseif strcmpi(data_scenario,'eegdata')
+                    % Randomly missing time for some channel and trial
+                    [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),2);
+                end
+                
+            else
+                % Fibers at random
+                [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss));
+            end
         end
         
-        
-        for i_mod = 1:length(model_schemes)
-            [train_err(i_miss, i_sc, i_mod,:), test_err(i_miss, i_sc, i_mod,:)] = ...
-                fitAndEvaluate(model_schemes{i_mod},X_train, X_test, D_est,...
-                algo_constr, algo_inputs);
+        if ~isempty(X_train)
+            for i_mod = 1:length(model_schemes)
+                [train_err(i_miss, i_sc, i_mod,:), test_err(i_miss, i_sc, i_mod,:)] = ...
+                    fitAndEvaluate(model_schemes{i_mod},X_train, X_test, D_est,...
+                    algo_constr, algo_inputs);
+            end
+        else
+            % Default to nan value.
         end
     end
 end
