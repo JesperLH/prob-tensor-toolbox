@@ -18,7 +18,7 @@ end
 miss_schemes = {'Missing Elements', 'Missing Fibers'};
 model_schemes = {'Variational', 'Sampling'};
 
-algo_inputs = {'maxiter',500,'conv_crit',1e-7};
+algo_inputs = {'maxiter',250,'conv_crit',1e-7};
 algo_constr = {'normal ard', 'normal ard', 'normal ard'};
 
 % Res
@@ -102,25 +102,21 @@ if contains(model_scheme,'variational','IgnoreCase',true)
     X_recon = nmodel(A);
     sd_vb = sqrt(1./model.noise.getExpFirstMoment());
     
-    train_error = [norm(X_train(idx_train)-X_recon(idx_train))...
-        /norm(X_train(idx_train)), sd_vb];
+    train_error = [rms(X_train(idx_train)-X_recon(idx_train)), sd_vb];
     
-    test_error = [norm(X_test(idx_test)-X_recon(idx_test))...
-        /norm(X_test(idx_test)), sd_vb];
+    test_error = [rms(X_test(idx_test)-X_recon(idx_test)), sd_vb];
     
 elseif contains(model_scheme,'sampling','IgnoreCase',true)
     error_gibbs = zeros(size(samples{1},3),1);
-    M_burnin = size(samples{1},3)/2;
+    M_burnin = floor(size(samples{1},3)/2);
     for i = M_burnin+1:size(samples{1},3)
         X_recon = nmodel({samples{1}(:,:,i),samples{2}(:,:,i),...
             samples{3}(:,:,i)});
         
-        error_gibbs(i,1) = norm(X_train(idx_train)-X_recon(idx_train))...
-            /norm(X_train(idx_train));
+        error_gibbs(i,1) = rms(X_train(idx_train)-X_recon(idx_train));
         
         if any(idx_test)
-            error_gibbs(i,2) = norm(X_test(idx_test)-X_recon(idx_test))...
-                /norm(X_test(idx_test));
+            error_gibbs(i,2) = rms(X_test(idx_test)-X_recon(idx_test));
         end
     end
     error_gibbs(1:M_burnin,:) = [];
