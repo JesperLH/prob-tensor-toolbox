@@ -36,9 +36,9 @@ end
 %% Example 3: Human Allen Data
 if run_allen
     load('../Data/Genetics/AllenBrainAtlas/processed_allen_data.mat');
-    X=X(1:500:end,:,:);
+    %X=X(1:500:end,:,:);
     X(X(:)==0)=nan; % Missing values
-    X=X/sqrt(var(X(:)));
+    X=X/sqrt(nanvar(X(:)));
     t0n=tic;
     [train_err_allen, test_err_allen] = demo_missing_analysis(...
         X,D_est,miss_fractions,'allendata');

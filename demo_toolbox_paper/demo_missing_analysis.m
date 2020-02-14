@@ -38,14 +38,19 @@ for i_sc = 1:length(miss_schemes)
             
         elseif contains(miss_schemes{i_sc},'fibers','IgnoreCase',true)
             if ~isempty(data_scenario)
-                Nx = size(data);
                 if strcmpi(data_scenario,'allendata')
                     % Randomly missing geneset for some area and subject
-                    [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),1);
+                    %[X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),1);
+                    [X_train, X_test] = demo_allen_missing(data,range_miss_fraction(i_miss));
                 elseif strcmpi(data_scenario,'eegdata')
                     % Randomly missing time for some channel and trial
                     [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),2);
+                elseif strcmpi(data_scenario,'sugardata')
+                    % Randomly missing emission spectra from some sample
+                    % and trial
+                    [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),2);
                 end
+                
                 
             else
                 % Fibers at random
