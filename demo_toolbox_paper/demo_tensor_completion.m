@@ -1,9 +1,12 @@
 %% Toolbox DEMO: Tensor Completion
 % Note. This demo requires the following datasets:
 % Example 1: Sugar Process Data (from http://www.models.life.ku.dk/Sugar_Process)
-% Example 2: EEG data from Subject 7 from the Wakeman dataset (see script .... )
-% Example 3: The Allen Human Brain data (see script..... )
-
+% Example 2: EEG data from Subject 7 from the Wakeman dataset (see script acq_allen_geneexpr_data.m )
+% Example 3: The Allen Human Brain data (see script acq_wakeman_eeg_data.m )
+load_sugar = '../Data/life_ku/Sugar_Process/data.mat';
+load_eeg = '../Data/Facescramble-Matlabform/facescramble-Sub07.mat';
+load_allen = '../Data/Genetics/AllenBrainAtlas/processed_allen_data.mat';
+    
 setup_paths;
 
 D_est = 10;
@@ -18,7 +21,7 @@ save_folder = './demo_toolbox_paper/';
 
 %% Example 1: Chemometrics
 if run_chemometrics
-    load('../Data/life_ku/Sugar_Process/data.mat')
+    load(load_sugar)
     X = reshape(X, DimX); X=X/sqrt(var(X(:)));
     t0n=tic;
     [train_err_sugar, test_err_sugar] = run_missing_analysis(...
@@ -30,7 +33,7 @@ end
 %% Example 2: Electroencephalogram (EEG) data
 % - 
 if run_eeg
-    load('../Data/Facescramble-Matlabform/facescramble-Sub07.mat')
+    load(load_eeg)
     data = data(:,:,1:idx_condition(2)); % Only the first condition
     data = data/sqrt(var(data(:)));
 
@@ -44,7 +47,7 @@ end
 
 %% Example 3: Human Allen Data
 if run_allen
-    load('../Data/Genetics/AllenBrainAtlas/processed_allen_data.mat');
+    load(load_allen);
     X=X(1:500:end,:,:);
     X(X(:)==0)=nan; % Missing values
     X=X/sqrt(var(X(:)));
