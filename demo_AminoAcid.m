@@ -61,36 +61,4 @@ for n = 1:ndims(X)
     end
 
 end
-% 
-% for n = 1:ndims(X)
-%     CI = model.factors{n}.getCredibilityInterval();
-%     subplot(2,ndims(X)+1,n);
-%     B =  squeeze(CI(:,idx_min,3));
-%     B_95 = CI(:,idx_min,[2,4]);
-%     
-%     plot(B);
-%     title(sprintf('Mode-%i, %s',n,name_modes{n}))
-% 
-%     subplot(2,ndims(X)+1,n+ndims(X)+1);
-%     for j = 2:2%size(B,2)
-%         errorbar(1:size(B,1), B(:,j), squeeze(B_95(:,j,1)),squeeze(B_95(:,j,2)))
-%     end
-%         
-%     
-% end
-% subplot(2,ndims(X)+1,n+1);
-% bar((lambda{i_ard}))
-
-return
-%%
-A = model.factors{2}.getExpFirstMoment();
-CI = model.factors{2}.getCredibilityInterval([0.025,0.975]);
-x = A(:,1);
-ci = squeeze(CI(:,1,:));
-figure; 
-subplot 221, plot(x)
-subplot 222, plot(1:length(x),x,'k', 'LineWidth',2); hold on
-             plot(1:length(x),ci(:,1),'r');
-             plot(1:length(x),ci(:,3),'b'); hold off
-subplot 223, plotCI(1:length(x),x,ci(:,[1,3]))
 
