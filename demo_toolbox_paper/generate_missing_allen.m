@@ -1,4 +1,4 @@
-function [X_train, X_test] = demo_allen_missing(X,missing_fraction)
+function [X_train, X_test] = generate_missing_allen(X,missing_fraction)
 
 if nargin < 1
 %     load('../Data/Genetics/AllenBrainAtlas/processed_allen_data.mat');

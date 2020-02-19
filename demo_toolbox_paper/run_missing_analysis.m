@@ -1,4 +1,4 @@
-function [train_err, test_err] = demo_missing_analysis(...
+function [train_err, test_err] = run_missing_analysis(...
     data,D_est,range_miss_fraction,data_scenario)
 
 if nargin < 1
@@ -41,7 +41,7 @@ for i_sc = 1:length(miss_schemes)
                 if strcmpi(data_scenario,'allendata')
                     % Randomly missing geneset for some area and subject
                     %[X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),1);
-                    [X_train, X_test] = demo_allen_missing(data,range_miss_fraction(i_miss));
+                    [X_train, X_test] = generate_missing_allen(data,range_miss_fraction(i_miss));
                 elseif strcmpi(data_scenario,'eegdata')
                     % Randomly missing time for some channel and trial
                     [X_train, X_test] = randomlyMissingFibers(data,range_miss_fraction(i_miss),2);
