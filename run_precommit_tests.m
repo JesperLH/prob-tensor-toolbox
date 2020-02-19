@@ -63,14 +63,17 @@ fclose(fID);
 fprintf('\n')
 %% Show file output in console
 if strcmpi(computer('arch'), 'win64')
-    command = sprintf('type %s',save_loc);
+    command = sprintf('type %s',strrep(save_loc,'/','\'));
     status = dos(command, '-echo');
 elseif strcmpi(computer('arch'), 'glnxa64')
     command = sprintf('cat %s',save_loc);
     status = unix(command, '-echo');
 end
 %%!cat unit-testing/summary_of_tests.md
-% keyboard
+
+if nargin < 1
+    keyboard
+end
 %%
 return
 
