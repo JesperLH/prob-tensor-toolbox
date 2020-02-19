@@ -1,10 +1,14 @@
-function visualizeDecomposition(A,G,labels_mode)
+function visualizeDecomposition(A,G,labels_mode,xaxis_mode)
 % VISUALIZEDECOMPOSITION provides a basic visualization tool for CP and
 % Tucker models.
 % INPUT:
 % A:    Cell with factor matrices
 % G:    Core array (empty => CP model)
 % labels_mode:  A cell array containing strings with labels on each mode
+
+if nargin < 4
+    xaxis_mode=[];
+end
 
 %%
 M = length(A);
@@ -33,7 +37,12 @@ for m = 1:M
             ylabel(sprintf('D_{%i}',m))%,'Rotation',0);
             set(gca,'XTick',[])
         else % Visualize m-mode factor matrix.
-            plot(squeeze(A{m}))
+            if ~isempty(xaxis_mode)
+                x = xaxis_mode{m};
+            else
+                x = 1:size(A{m},1);
+            end
+            plot(x,squeeze(A{m}))
             axis tight
             if m==1
                 ylabel('Loading')
