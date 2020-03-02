@@ -38,22 +38,16 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
                 if ~isempty(Rm) && numel(Rm) ~= nnz(Rm)
                     error('Orthogonal factor matrix expects fully observed data!')
                 end
+                % Calculate MTTKRP
+                [Xmkr] = self.calcMTTPandSecondmoment(update_mode, ...
+                    Xm, Rm, [], eFact, [], [], eNoise);
                 
-                ind=1:length(eFact);
-                ind(update_mode) = [];
-                
-                % Calculate sufficient statistics
-                kr = eFact{ind(1)};
-                for i = ind(2:end)
-                    kr = krprod(eFact{i},kr);
-                end
-                
-                Xmkr = Xm*kr;
                 if ~iscell(eNoise)
                     self.factor = eNoise*Xmkr;
                 else
                     self.factor = Xmkr;
                 end
+                
                 
                 N = size(Xmkr,1);
                 [UU,SS,VV]=svd(self.factor, 'econ');

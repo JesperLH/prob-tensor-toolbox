@@ -214,7 +214,7 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
         end
         
 %         function ci = getCredibilityInterval(self, req_quantiles)
-%               %% TODO: Can we calculate this theoretically?
+%               %% TODO: Calculate this theoretically?
 %         end
         
     end
@@ -228,92 +228,17 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
         function hals_update(self, update_mode, Xm, Rm, eFact, eFact2,...
                 eFact2pairwise, eNoise)
             
-            ind=1:length(eFact);
-            ind(update_mode) = [];
+            % Calculate MTTKRP and Expected Second Moment
+            [Xmkr, krkr] = self.calcMTTPandSecondmoment(update_mode, ...
+                Xm, Rm, [], eFact, eFact2, eFact2pairwise, eNoise);
             
-            % Calculate sufficient statistics
-            kr = eFact{ind(1)};
-            D = size(eFact{1},2);
-            for i = ind(2:end)
-                kr = krprod(eFact{i},kr);
-            end
-            
-            
-            Xmkr = Xm*kr;
+            Rkrkr = []; IND = [];
             if self.data_has_missing
-                if size(eFact2pairwise{1},2) == D
-                    d_idx = 1:D;
-                else
-                    d_idx = D*( (1:D)-1)+(1:D);
-                end
-
-                if iscell(eNoise)
-                    kr2_ = bsxfun(@times,...
-                        eFact2pairwise{ind(1)}(:,d_idx),...
-                        eNoise{ind(1)});
-                else
-                    kr2_ = eFact2pairwise{ind(1)}(:,d_idx);
-                end
-
-                for i = ind(2:end)
-
-                    if iscell(eNoise)
-                        kr2_ = krprod(bsxfun(@times,...
-                            eFact2pairwise{i}(:,d_idx),...
-                            eNoise{i}),...
-                            kr2_);
-                    else
-                        kr2_ = krprod(eFact2pairwise{i}(:,d_idx),kr2_);
-                    end
-
-
-                end
-                % Sigma is individual (regardless of ARD) because of missing values.
-                kr2_sum = Rm*kr2_;
-                
-                krkr=[];
-                Rkrkr = []; IND = [];
-                
-                if ~isempty(eFact2pairwise{end})
-                    if iscell(eNoise)
-                        Rkrkr = bsxfun(@times,eFact2pairwise{ind(1)}, eNoise{ind(1)});
-                        for i = 2:length(ind)
-                            Rkrkr = krprod(bsxfun(@times,...
-                                eFact2pairwise{ind(i)}, eNoise{ind(i)})...
-                                , Rkrkr);
-                        end
-                        
-                    else
-                        Rkrkr = eFact2pairwise{ind(1)};
-                        for i = 2:length(ind)
-                            Rkrkr = krprod(eFact2pairwise{ind(i)}, Rkrkr);
-                        end
-                    end
-                    Rkrkr = Rm*Rkrkr;
-               end
-                
+                D = size(eFact{1},2);
+                kr2_sum=krkr(:,D*( (1:D)-1)+(1:D));
+                Rkrkr = krkr;
             else
-                
-                if iscell(eNoise)
-                    % If noise is present, then kr'*kr will have the noise
-                    % variance multiplied twice.
-                    noise_ = eNoise{ind(1)};
-                    for i = 2:length(ind)
-                        noise_ = krprod(eNoise{ind(i)}, noise_);
-                    end
-                    kr = bsxfun(@rdivide, kr, sqrt(noise_));
-                end
-                
-                krkr = ones(D,D);
-                for i = ind
-                    krkr = krkr .* eFact2{i};
-                end
-                Rkrkr = []; IND = [];
-                
-                %kr2_sum=sum(kr2_,1);
-                kr2_sum=diag(krkr)'; %This way we do not need to calculate (or store) eFact2pairwise, when there is no missing data..
-                
-                
+                kr2_sum=diag(krkr)';
             end
             
             % Inference specific sufficient stats
@@ -338,7 +263,7 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                     not_d(d)=[];
                     self.updateComponent(d, not_d, lb, ub, ...
                             Xmkr, eNoise, ...
-                            krkr, Rkrkr)                   
+                            krkr, Rkrkr)
                 end
             end
             

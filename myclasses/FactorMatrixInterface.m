@@ -57,6 +57,92 @@ classdef (Abstract) FactorMatrixInterface < handle
     
     methods
         
+        function [E_MTTP, EPtP] = calcMTTPandSecondmoment(self, update_mode, ...
+                Xm, Rm, eCore, eFact, eFact2, eFact2pairwise, eNoise)
+            % Estimates,
+            %   E_MTTP: denotes the Matrix-Times-Tensor-Product which is
+            %       either the MTT-Khatri-Rao-Product or MTT-Kronecker-Product
+            %       depending on whether a CP or Tucker model is fit.
+            %   EPtP: The is the expected second moment of the factor matrix product,
+            %       i.e. E[A'*A]. 
+            
+            ind=1:length(eFact);
+            ind(update_mode) = [];
+                
+            if isempty(eCore) % CP model
+                D = size(eFact{1},2);
+                
+                E_MTTP = eFact{ind(1)};
+                for i = ind(2:end)
+                    E_MTTP = krprod(eFact{i},E_MTTP);
+                end
+                E_MTTP = Xm*E_MTTP; 
+                
+                if nargout > 1
+                    % Calculate second order moment
+                    if self.data_has_missing
+                        is_univariate_q = my_contains(self.distribution,...
+                            {'exponential','uniform','truncated'},'IgnoreCase',true);
+    %                     if is_univariate_q
+    %                         if size(eFact2pairwise{update_mode},2) == D
+    %                             % All factors have univariate Q-distribution
+    %                             d_idx = 1:D; 
+    %                         else
+    %                             d_idx = D*( (1:D)-1)+(1:D);
+    %                         end
+    %                     else
+                            d_idx = 1:size(eFact2pairwise{1},2);
+    %                     end
+
+
+                        if iscell(eNoise)
+                            % Heteroscedastic noise
+                            EPtP = bsxfun(@times, eFact2pairwise{ind(1)}(:,d_idx), eNoise{ind(1)});
+                            for i = ind(2:end)
+                                EPtP = krprod(bsxfun(@times, eFact2pairwise{i}(:,d_idx), eNoise{i}), EPtP);
+                            end
+                        else
+                            % Homoscedastic noise
+                            EPtP = eFact2pairwise{ind(1)}(:,d_idx);
+                            for i = ind(2:end)
+                                EPtP = krprod(eFact2pairwise{i}(:,d_idx), EPtP);
+                            end
+                        end
+
+                        EPtP = Rm*EPtP;
+                        if ~is_univariate_q
+                            EPtP = permute(reshape(EPtP, self.factorsize(1), D, D), [2,3,1]);
+                        end
+
+                    else
+                        % Full data (same for both homo- and heteroscedastic noise,
+                        % as hetero noise is included in eFact2) 
+                        EPtP = eFact2{ind(1)};
+                        for i = ind(2:end)
+                            EPtP = EPtP .* eFact2{i};
+                        end
+                    end
+                end
+            else % Tucker model
+                
+                %Xmkron
+                X=unmatricizing(Xm,update_mode,cellfun(@(t) size(t,1),eFact)');
+                cellfun(@(t) size(t,1),eFact)
+                for j=ind
+                    X=tmult(X,eFact{j}',j);            
+                end
+                E_MTTP=matricizing(X,update_mode);
+                E_G_i=matricizing(eCore,update_mode);
+                E_MTTP=(E_MTTP*E_G_i')*eNoise;
+
+                
+                if nargout > 1
+                
+                end
+            end
+            
+        end
+        
         function ci = getCredibilityInterval(self, usr_quantiles)
             % Get samples form the factor distribution
             sample_data = self.getSamples(1000); % TODO: Determine a suitable number..

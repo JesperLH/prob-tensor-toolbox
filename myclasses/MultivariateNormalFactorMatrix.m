@@ -36,45 +36,11 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
         end
         
         function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2pairwise, eNoise)
-            
-            ind=1:length(eFact);
-            ind(update_mode) = [];
             D = size(eFact{1},2);
-
-            % Calculate sufficient statistics
-            kr = eFact{ind(1)};
-            for i = ind(2:end)
-                kr = krprod(eFact{i},kr);
-            end
-            Xmkr = Xm*kr;
-
-            % Expected second moment of the product of the other modes.
-            if self.data_has_missing
-                if iscell(eNoise)
-                    % Heteroscedastic noise
-                    ekrkr = bsxfun(@times, eFact2pairwise{ind(1)}, eNoise{ind(1)});
-                    for i = ind(2:end)
-                        ekrkr = krprod(bsxfun(@times, eFact2pairwise{i}, eNoise{i}), ekrkr);
-                    end
-                else
-                    % Homoscedastic noise
-                    ekrkr = eFact2pairwise{ind(1)};
-                    for i = ind(2:end)
-                        ekrkr = krprod(eFact2pairwise{i}, ekrkr);
-                    end
-                end
-                
-                ekrkr = Rm*ekrkr;
-                ekrkr = permute(reshape(ekrkr, self.factorsize(1), D, D), [2,3,1]);
-
-            else
-                % Full data (same for both homo- and heteroscedastic noise,
-                % as hetero noise is included in eFact2) 
-                ekrkr = ones(D,D);
-                for i = ind
-                    ekrkr = ekrkr .* eFact2{i};
-                end
-            end
+            
+            % Calculate MTTKRP and Expected Second Moment
+            [Xmkr, ekrkr] = self.calcMTTPandSecondmoment(update_mode, ...
+                Xm, Rm, [], eFact, eFact2, eFact2pairwise, eNoise);
             
             % Update factor mean and covariance
             if self.observations_share_prior
@@ -174,21 +140,7 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                 end
                           
             end
-%                 if ~self.data_has_missing && ismatrix(self.covariance)
-%                     eFact2 = self.covariance*self.factorsize(1)...
-%                         + symmetrizing(self.factor'*self.factor, self.debug);
-%                 else
-%                     eFact2 = sum(self.covariance,3)...
-%                         + symmetrizing(self.factor'*self.factor, self.debug);
-%                 end
-%             elseif nargin == 2
-%                 eFact2 = sum(...
-%                           bsxfun(@times, self.covariance, permute(eNoise,[2,3,1]))... % Heteroscedastic noise
-%                           ,3)...
-%                         + symmetrizing(self.factor'*diag(eNoise)*self.factor, self.debug);
-%             else
-%                 eFact2 = [];
-%             end
+
         end
         
         function eFact2elem = getExpSecondMomentElem(self, eNoise)
