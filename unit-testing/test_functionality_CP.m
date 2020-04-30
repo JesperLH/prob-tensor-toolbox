@@ -10,7 +10,7 @@ classdef test_functionality_CP < matlab.unittest.TestCase
         
         %add_noise = {true}%,false}
         create_missing = {false, true};
-        inference_scheme = {'variational'};%, 'sampling'};
+        inference_scheme = {'variational', 'sampling'};
         factor_distribution = {{'normal','normal'},{'normal', 'normal', 'normal'}};
         
         constraints_2way = {{'constant','scale'},...

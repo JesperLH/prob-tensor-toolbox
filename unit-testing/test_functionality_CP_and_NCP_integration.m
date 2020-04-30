@@ -9,7 +9,7 @@ classdef test_functionality_CP_and_NCP_integration < matlab.unittest.TestCase
     properties (TestParameter)
         
         create_missing = {false, true};
-        inference_scheme = {'variational'};%, 'sampling'};
+        inference_scheme = {'variational', 'sampling'};
         factor_distribution = {{'nonneg ','normal '},...
             {'nonneg exponential ','normal '}};
         constraints_2way = {{'constant','scale'},... 1

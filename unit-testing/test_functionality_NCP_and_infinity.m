@@ -10,7 +10,7 @@ classdef test_functionality_NCP_and_infinity < matlab.unittest.TestCase
         
         %add_noise = {true}%,false}
         create_missing = {false, true};
-        inference_scheme = {'variational'};%, 'sampling'};
+        inference_scheme = {'variational', 'sampling'};
         factor_distribution = {{'nonneg ','nonneg '},...
             {'nonneg exponential ','nonneg exponential '},...
             {'nonneg ','nonneg exponential '}};

@@ -5,7 +5,7 @@ classdef test_functionality_Orthogonal_integration < matlab.unittest.TestCase
     properties (TestParameter)
         
         create_missing = {false};%, true};
-        inference_scheme = {'variational'};%, 'sampling'};
+        inference_scheme = {'variational', 'sampling'};
         
         factor_distribution = {{'nonneg ', 'nonneg expo '},...
             {'nonneg exponential ', 'normal '},...
