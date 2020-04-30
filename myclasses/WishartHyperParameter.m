@@ -12,7 +12,7 @@ classdef WishartHyperParameter < HyperParameterInterface
     end
     
     properties (Constant)
-        valid_prior_properties = {'ard','sparse','scale'};
+        valid_prior_properties = {'Wishart'};%{'ard','sparse','scale'};
         supported_inference_methods = {'variational','sampling'};
         inference_default = 'variational';
     end
@@ -44,6 +44,9 @@ classdef WishartHyperParameter < HyperParameterInterface
             else
                 obj.inference_method = obj.inference_default;
             end
+            
+            obj.prior_property = 'Wishart';
+            
             
         end
           

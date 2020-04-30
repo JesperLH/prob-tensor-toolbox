@@ -27,7 +27,7 @@ end
 end
 
 if isDiverging && abs(delta_cost) < conv_crit
-    sw = sprintf('Soft-error: Lowerbound diverged in iteration %i, by %6.4e (relative err.).',...
+    sw = sprintf('Soft-error: Lowerbound decreased in iteration %i, by %6.4e (relative change).',...
                 current_iteration,delta_cost);
     
     
@@ -46,6 +46,6 @@ if isDiverging && abs(delta_cost) < conv_crit
     warning(sw)
 else
     % This indicates an error.
-    assert(delta_cost>=0,' Lowerbound diverged by %6.4e!! after %i iterations',...
-        delta_cost,current_iteration)
+    assert(delta_cost>=0,' Lowerbound decreased in iteration %i, by %6.4e (relative change).',...
+                current_iteration,delta_cost)
 end
