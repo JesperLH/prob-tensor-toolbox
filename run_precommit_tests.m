@@ -31,16 +31,26 @@ tCpu = cputime;
 run_parallel = true;
 % else
 % Run unit tests: Non-negative CP, t-norm, expo and infinity (e.g. NCP)
+result_ncp = [];
 result_ncp = runtests('unit-testing/test_functionality_NCP_and_infinity.m','UseParallel',run_parallel);
 % Run unit tests: Multivariate Normal CP (eg. CP)
+result_cp = [];
 result_cp = runtests('unit-testing/test_functionality_CP.m','UseParallel',run_parallel);
 % Run unit tests: Integration of NCP and CP factors
+result_inte = [];
 result_inte = runtests('unit-testing/test_functionality_CP_and_NCP_integration.m','UseParallel',run_parallel);
 % Run unit tests: Integration of Orthogonal factors and NCP and CP factors
 % (No missing, and only homoscedastic noise)
+result_orth = [];
 result_orth = runtests('unit-testing/test_functionality_Orthogonal_integration.m','UseParallel',run_parallel);
 
-result = [result_ncp(:); result_cp(:); result_inte(:); result_orth(:)];
+% TUCKER DECOMPOSITION
+% Run unit tests: Integration of Orthogonal factors and Normal Factors
+% (No missing, and only homoscedastic noise)
+result_tucker = [];
+% result_tucker = runtests('unit-testing/test_functionality_Tucker.m','UseParallel',run_parallel);
+
+result = [result_ncp(:); result_cp(:); result_inte(:); result_orth(:); result_tucker(:)];
 fprintf(fID, 'Real time was %6.4f sec.\n', toc(t0) );
 fprintf(fID, 'CPU time was %6.4f sec.\n\n', cputime-tCpu);
 
