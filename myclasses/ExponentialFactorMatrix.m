@@ -28,16 +28,10 @@ classdef ExponentialFactorMatrix < TruncatedNormalFactorMatrix
             obj.prior_mean = [];
         end
         
-        function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2elem, eNoise)
-            
-            if strcmpi(self.optimization_method,'hals')
-                %hals_update@TruncatedNormalFactorMatrix(self,update_mode, Xm, Rm, eFact, eFact2, eNoise);
-                self.hals_update(update_mode, Xm, Rm, eFact, eFact2, eFact2elem, eNoise)
-            else
-                error('Unknown optimization method')
-            end
-            
-        end
+%         function updateFactor()
+%           %Same as for TruncatedNormalFactorMatrix
+%         end
+
         
         function eContr2Prior = getContribution2Prior(self)
                 eContr2Prior = self.getExpFirstMoment();
@@ -57,10 +51,7 @@ classdef ExponentialFactorMatrix < TruncatedNormalFactorMatrix
             logp = sum(sum(self.hyperparameter.getExpLogMoment(self.factorsize)))...
                 - sum(sum(bsxfun(@times, self.hyperparameter.prior_value ,...
                 self.getExpFirstMoment())));
-            
-            if strcmpi(self.inference_method,'sampling')
-                warning('Check if log prior for exponential distribution, is equal when sampling and using vb')
-            end
+
         end
     end
     

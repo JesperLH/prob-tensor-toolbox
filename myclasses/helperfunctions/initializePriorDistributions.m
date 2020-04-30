@@ -22,6 +22,11 @@ if nargin <1
    constraints = strcat(input_factor_distr',{' '},input_prior_distr');
     
 end
+
+if length(D) < length(N)
+    D = repmat(D,1,length(N));
+end
+
 %%
 for i = 1:length(constraints)
     temp = strsplit(constraints{i});
@@ -52,10 +57,10 @@ Nx = length(input_factor_distr);
 
 %% Validate Input 
 if all(my_contains(input_factor_distr, 'orth','IgnoreCase',true))
-    warning(['Orthogonalizing all modes may lead to only zero factors. ',...
+    warning(['For Candecomp/PARAFAC (CP): Orthogonalizing all modes may lead to only zero factors. ',...
     'Try scaling the data "X/(var(X(:))^(1/ndims(X)))" or modeling a normal ',...
     'distribution on one of the modes.'])
-    pause(5)
+%     pause(5)
 end
 
 valid_factor_distr = {'normal','nonneg',...
@@ -189,13 +194,13 @@ for i = 1:Nx
             a0=[]%1e-3
             b0=[]%1e-3
             priors{i} = GammaHyperParameter(factor_distr, prior_distr,...
-                [Ni,D],a0,b0,inference_scheme{i,2}, Neffective);
+                [Ni,D(i)],a0,b0,inference_scheme{i,2}, Neffective);
         elseif strcmpi(prior_distr,'constant')
             constr_value=1;
-            priors{i} = HyperParameterConstant([N(i), D], constr_value);
+            priors{i} = HyperParameterConstant([N(i), D(i)], constr_value);
             
         elseif strcmpi(prior_distr,'wishart')
-            priors{i} = WishartHyperParameter([Ni,D],inference_scheme{i,2});
+            priors{i} = WishartHyperParameter([Ni,D(i)],inference_scheme{i,2});
         else
             error('Unknown prior distribution (%s).', prior_distr)
         end
@@ -237,23 +242,23 @@ for i = 1:length(input_factor_distr)
     
     %% Actually initialize factor
     if strcmp(factor_distr, 'exponential')
-        factors{i} = ExponentialFactorMatrix([N(i),D], handle(priors{i}),...
+        factors{i} = ExponentialFactorMatrix([N(i),D(i)], handle(priors{i}),...
             missing, inference_scheme{i,1});
         factors{i}.initialize(@rand);
         
     elseif strcmp(factor_distr, 'truncated normal')
-        factors{i} = TruncatedNormalFactorMatrix([N(i),D], handle(priors{i}),...
+        factors{i} = TruncatedNormalFactorMatrix([N(i),D(i)], handle(priors{i}),...
             missing, inference_scheme{i,1});
         factors{i}.initialize(@rand);
         
     elseif strcmp(factor_distr, 'multivariate normal')
         factors{i} = MultivariateNormalFactorMatrix(...
-            [N(i),D], handle(priors{i}),...
+            [N(i),D(i)], handle(priors{i}),...
             missing, inference_scheme{i,1});
         factors{i}.initialize(@randn);
         
     elseif strcmp(factor_distr, 'infinity')
-        factors{i} = UniformFactorMatrix([N(i), D], 0, 1,...
+        factors{i} = UniformFactorMatrix([N(i), D(i)], 0, 1,...
             missing, inference_scheme{i,1});
         factors{i}.initialize(@(arg) rand(arg)*0.5+0.25);
         
@@ -262,9 +267,9 @@ for i = 1:length(input_factor_distr)
     elseif strcmp(factor_distr, 'orthogonal')
         
         assert(missing==false,'Missing values are not supported when using orthogonal factors.')
-        assert(N(i)>= D, 'When modeling orthogonality in mode i, then the observations in that mode (N_i=%i) must be greater than or equal to the rank (D=%i).', N(i), D)
+        assert(N(i)>= D(i), 'When modeling orthogonality in mode i, then the observations in that mode (N_i=%i) must be greater than or equal to the rank (D=%i).', N(i), D)
         
-        factors{i} = OrthogonalFactorMatrix([N(i), D], inference_scheme{i,1});
+        factors{i} = OrthogonalFactorMatrix([N(i), D(i)], inference_scheme{i,1});
         factors{i}.initialize(@(arg) orth(randn(arg)));
         
         priors{i} = factors{i}.hyperparameter;

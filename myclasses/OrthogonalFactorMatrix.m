@@ -29,18 +29,19 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
             else
                 obj.inference_method = inference;
             end
+%             obj.inference_method = 'sampling'
             obj.hyperparameter = HyperParameterNone(shape);
             
         end
         
-        function updateFactor(self, update_mode, Xm, Rm, eFact, ~, ~, eNoise)
+        function updateFactor(self, update_mode, Xm, Rm, eCore,~, eFact, ~, ~, eNoise)
                 
                 if ~isempty(Rm) && numel(Rm) ~= nnz(Rm)
                     error('Orthogonal factor matrix expects fully observed data!')
                 end
                 % Calculate MTTKRP
                 [Xmkr] = self.calcMTTPandSecondmoment(update_mode, ...
-                    Xm, Rm, [], eFact, [], [], eNoise);
+                    Xm, Rm, eCore,[], eFact, [], [], eNoise);
                 
                 if ~iscell(eNoise)
                     self.factor = eNoise*Xmkr;
@@ -58,14 +59,15 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
                     % Get expected value
                     if self.num_updates < 1 % Use MAP estimate for the first update. Note the entropy will be wrong..
                         self.efactor = UU*VV';
-                        self.entropy = -1e+100;
+%                         self.entropy = -1e+100;
                     else
                         self.efactor = UU*diag(f)*VV';
-                        self.entropy = lF-sum(self.factor(:).*self.efactor(:));
+%                         self.entropy = lF-sum(self.factor(:).*self.efactor(:));
                     end
+                    self.entropy = lF-sum(self.factor(:).*self.efactor(:));
                     self.num_updates = self.num_updates + 1;
                 
-                    assert(isreal(self.entropy))
+                    assert(isreal(self.entropy));
                     
                  elseif strcmpi(self.inference_method,'sampling')
                     % Gibbs sampling matrix vMF
@@ -94,7 +96,7 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
         
         function eFact2 = getExpSecondMoment(self, eNoise)
             
-            eFact2 = eye(size(self.factor,2)); 
+            eFact2 = eye(size(self.factor,2));
             if nargin > 1
                 assert(all(eNoise==1), 'Heteroscedastic noise is not allowed on the orthogonal factor')
             end
@@ -158,7 +160,7 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
             % TODO: Validate current implementation!
             
 %             warning('Implementation not properly tested yet! Sampling may not work..')
-            num_burnin = max(100, round(num_samples)*0.2);
+            num_burnin = max(10, round(num_samples)*0.2);
             samples = sample_matrix_vonMises_Fisher(self.factor,num_burnin+num_samples);
             samples = samples(:,:,num_burnin+1:end);
         end

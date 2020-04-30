@@ -59,10 +59,10 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
 
         end
         
-        function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2elem, eNoise)
+        function updateFactor(self, update_mode, Xm, Rm, eCore, covCore, eFact, eFact2, eFact2elem, eNoise)
             
             if strcmpi(self.optimization_method,'hals')
-                self.hals_update(update_mode, Xm, Rm, eFact, eFact2, eFact2elem, eNoise)
+                self.hals_update(update_mode, Xm, Rm, eCore, covCore, eFact, eFact2, eFact2elem, eNoise)
             else
                 error('Unknown optimization method')
             end
@@ -225,16 +225,16 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
         % Inferes the factor matrix by conditional updates, e.g. comparable
         % to the hierarchical alternating least squares (hals) framework,
         % using either Variational inference or Gibbs sampling.
-        function hals_update(self, update_mode, Xm, Rm, eFact, eFact2,...
+        function hals_update(self, update_mode, Xm, Rm, eCore, covCore, eFact, eFact2,...
                 eFact2pairwise, eNoise)
             
             % Calculate MTTKRP and Expected Second Moment
             [Xmkr, krkr] = self.calcMTTPandSecondmoment(update_mode, ...
-                Xm, Rm, [], eFact, eFact2, eFact2pairwise, eNoise);
+                Xm, Rm, eCore, covCore, eFact, eFact2, eFact2pairwise, eNoise);
             
             Rkrkr = []; IND = [];
             if self.data_has_missing
-                D = size(eFact{1},2);
+                D = size(eFact{update_mode},2);
                 kr2_sum=krkr(:,D*( (1:D)-1)+(1:D));
                 Rkrkr = krkr;
             else

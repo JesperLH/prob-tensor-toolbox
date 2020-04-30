@@ -76,7 +76,7 @@ function [E_FACT,E_FACT2, E_Lambda, Lowerbound, model,all_samples]=VB_CP_ALS(X,D
 %                   for debugging)
 %
 %% Initialize paths
-if exist('./setup_paths.m')==2
+if exist('./setup_paths.m')==2 && ~exist('FactorMatrixInterface.m')
     evalc('setup_paths');
 end
 
@@ -149,7 +149,7 @@ some_variables_are_sampled = any(any(strcmpi('sampling',inference_scheme)));
 all_samples = cell(ndims(X)+1, 2);
 
 %% Initialize the factor matrices and noise
-R_obs=logical(true-isnan(X)); % Set observed (true) or not observed (false) status.
+R_obs=~isnan(X); % Set observed (true) or not observed (false) status.
 has_missing_marg = ~all(R_obs(:));
 impute_x = ~R_obs;  % find(~R_obs) gives the indices, but they require more space.
 
@@ -176,9 +176,6 @@ N=size(X); %Elements in each dimension
 
 % Get relevant expected moments of the factors and setup X and R matricized
 % for each mode. 
-% TODO: Data and missing pattern should not be replicated.
-Xm = cell(Nx,1);
-Rm = cell(Nx,1);
 E_FACT = cell(Nx,1);
 E_FACT2 = cell(Nx,1);
 E_Contribution2FactorPrior = cell(Nx,1);
@@ -321,7 +318,9 @@ if any(my_contains(constraints, {'infi','orthogonal'}, 'IgnoreCase', true))
     infty_idx = my_contains(constraints, {'infi','orthogonal'}, 'IgnoreCase', true);
     for i = [find(~infty_idx), ...  % First update all non-infty factors
             find(infty_idx)]        % Second update all infty factors
-        factors{i}.updateFactor(i, matricizing(X,i), matricizing(R_obs,i), E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+%         factors{i}.updateFactor(i, matricizing(X,i), matricizing(R_obs,i), [], E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+        factors{i}.updateFactor(i, matricizing(X,i), matricizing(R_obs,i), [], [], E_FACT, E_FACT2, E_FACT2elementpairwise, Etau) 
+                
         E_FACT{i} = factors{i}.getExpFirstMoment();
         E_FACT2{i} = factors{i}.getExpSecondMoment();
         if has_missing_marg || hetero_noise_modeling(i)
@@ -375,8 +374,7 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             R = f_unfold_i_to_j(R,i_mode_unfolded,i);
             i_mode_unfolded = i;
 
-            factors{i}.updateFactor(i, X, R, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
-%             factors{i}.updateFactor(i, Xm{i}, Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau)
+            factors{i}.updateFactor(i, X, R, [], [], E_FACT, E_FACT2, E_FACT2elementpairwise, Etau) 
         end
         
         % Get the expected value (sufficient statistics)
@@ -495,7 +493,6 @@ while delta_cost>=conv_crit && iter<maxiter || ...
             
             if model_tau && iter > fixed_tau
                 % Update each heteroscedastic noise mode
-%                 noiseType{i}.updateNoise(Xm{i},Rm{i}, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau);
                 noiseType{i}.updateNoise(X,R, E_FACT, E_FACT2, E_FACT2elementpairwise, Etau);
                 Etau{i} = noiseType{i}.getExpFirstMoment();
                 Eln_tau{i} = noiseType{i}.getExpLogMoment();
@@ -524,7 +521,6 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         for i = idx(2:end)
             ldnp = krsum(Eln_tau{i}, ldnp); % TODO: Ignore modes with no noise
         end
-%         ldnp = Rm{noise_final_mode}*ldnp;
         ldnp = R*ldnp;
         cost = cost + noiseType{noise_final_mode}.calcCost(ldnp);
 

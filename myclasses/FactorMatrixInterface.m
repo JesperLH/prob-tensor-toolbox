@@ -1,19 +1,3 @@
-% classdef (Attributes) ClassName
-%    properties (Attributes)
-%       PropertyName
-%    end
-%    methods (Attributes)
-%       function obj = methodName(obj,arg2,...)
-%          ...
-%       end
-%    end
-%    events (Attributes)
-%       EventName
-%    end
-%    enumeration
-%       EnumName
-%    end
-% end
 classdef (Abstract) FactorMatrixInterface < handle
     % Public properties
     
@@ -35,7 +19,7 @@ classdef (Abstract) FactorMatrixInterface < handle
     
     methods (Abstract)
         % Fitting methods
-        updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2elementwise, eNoise)
+        updateFactor(self, update_mode, Xm, Rm, eCore, eFact, eFact2, eFact2elementwise, eNoise)
         updateFactorPrior(self, eContribution, distribution_constant)
         
         % Get expected moments
@@ -58,7 +42,7 @@ classdef (Abstract) FactorMatrixInterface < handle
     methods
         
         function [E_MTTP, EPtP] = calcMTTPandSecondmoment(self, update_mode, ...
-                Xm, Rm, eCore, eFact, eFact2, eFact2pairwise, eNoise)
+                Xm, Rm, eCore, covCore, eFact, eFact2, eFact2pairwise, eNoise)
             % Estimates,
             %   E_MTTP: denotes the Matrix-Times-Tensor-Product which is
             %       either the MTT-Khatri-Rao-Product or MTT-Kronecker-Product
@@ -125,20 +109,7 @@ classdef (Abstract) FactorMatrixInterface < handle
                 end
             else % Tucker model
                 
-                %Xmkron
-                X=unmatricizing(Xm,update_mode,cellfun(@(t) size(t,1),eFact)');
-                cellfun(@(t) size(t,1),eFact)
-                for j=ind
-                    X=tmult(X,eFact{j}',j);            
-                end
-                E_MTTP=matricizing(X,update_mode);
-                E_G_i=matricizing(eCore,update_mode);
-                E_MTTP=(E_MTTP*E_G_i')*eNoise;
-
                 
-                if nargout > 1
-                
-                end
             end
             
         end
@@ -187,9 +158,24 @@ classdef (Abstract) FactorMatrixInterface < handle
         end
         
         function summary = getSummary(self)
-            summary = sprintf(['Factor matrix which follows a %s, '...
-                '\n\t where the prior on its parameters follow ....'],...
-                self.distribution);
+            if my_contains(self.hyperparameter.prior_property,{'scale','sparse','ard'})
+                s_hyperprior_distr = sprintf([' and the prior on its ',...
+                    'parameters is a Gamma based %s prior.'], ...
+                    self.hyperparameter.prior_property);
+            elseif strcmpi(self.hyperparameter.prior_property,'constant')
+                s_hyperprior_distr = ' with identity rate/variance.';
+            elseif strcmpi(self.hyperparameter.prior_property,'wishart')
+                s_hyperprior_distr = ' and its precision matrix follows a Wishart distribution.';
+            elseif strcmpi(self.hyperparameter.prior_property,'none')
+                s_hyperprior_distr = '.';
+            else
+                error('Prior property/type not specified.')
+            end
+                
+            
+            
+            summary = sprintf(['Factor matrix follows a %s distribution%s'],...
+                self.distribution,s_hyperprior_distr);
         end
         
         function setOptimization(self,s)

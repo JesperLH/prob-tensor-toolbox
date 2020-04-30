@@ -31,16 +31,16 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
             assert(any(strcmpi(inference,obj.supported_inference_methods)),...
                 ' Specified inference procedure is not available (%s)', inference)
             obj.inference_method = inference;
-            
+            obj.covariance=eye(shape(2));
 %             obj.prior_mean = randn(shape);            
         end
         
-        function updateFactor(self, update_mode, Xm, Rm, eFact, eFact2, eFact2pairwise, eNoise)
-            D = size(eFact{1},2);
+        function updateFactor(self, update_mode, Xm, Rm, eCore, covCore, eFact, eFact2, eFact2pairwise, eNoise)
+            D = size(eFact{update_mode},2);
             
             % Calculate MTTKRP and Expected Second Moment
             [Xmkr, ekrkr] = self.calcMTTPandSecondmoment(update_mode, ...
-                Xm, Rm, [], eFact, eFact2, eFact2pairwise, eNoise);
+                Xm, Rm, eCore, covCore, eFact, eFact2, eFact2pairwise, eNoise);
             
             % Update factor mean and covariance
             if self.observations_share_prior
@@ -69,10 +69,8 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                 else
                     self.covariance = my_pagefun(@inv,...
                             eNoise*ekrkr+ePrior);
-                    
-                    %self.covariance = symmetrizing(self.covariance, self.debug);
                     self.covariance = my_pagefun(@symmetrizing,self.covariance);
-                    
+
                     self.factor = eNoise*squeeze(permute(my_pagefun(...
                         @mtimes, self.covariance, permute(Xmkr,[2,3,1])), ...
                         [3,1,2]));
