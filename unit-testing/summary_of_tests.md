@@ -1,7 +1,7 @@
 # Unit test status
-Real time was 488.7296 sec.
-CPU time was 19.8438 sec.
+Real time was 236.0457 sec.
+CPU time was 22.2800 sec.
 
-Everything is able to run (all 708 cases)
+Everything is able to run (all 1416 cases)
 
-March 02, 2020 13:42:24
+April 30, 2020 14:13:03
