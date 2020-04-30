@@ -109,7 +109,51 @@ classdef (Abstract) FactorMatrixInterface < handle
                 end
             else % Tucker model
                 
+                %Xmkron
+                if ndims(Xm) ~= length(eFact)
+%                     X=unmatricizing(Xm,update_mode,...
+%                         reshape(cellfun(@(t) size(t,1),eFact),1,length(eFact)));
+                else
+                    X=Xm;
+                end
                 
+                krp=eFact{ind(end)};
+                for i=ind(end-1:-1:1)
+                    krp = kron(krp,eFact{i});
+                end
+                E_MTTP = matricizing(X,update_mode)*krp;
+                E_G_i=matricizing(eCore,update_mode);
+                E_MTTP=(E_MTTP*E_G_i');
+
+                
+                if nargout > 1
+                    EPtP = eFact2{ind(end)};
+                    for i = ind(end-1:-1:1)
+                        EPtP = kron(EPtP,eFact2{i});
+                    end
+                    
+                    idx = 1;
+                    for i=ndims(X):-1:1
+                        if i == update_mode
+                            idx = krprod(idx,(1:size(eCore,i))');
+                        else
+                            idx = krprod(idx,ones(size(eCore,i),1));
+                        end
+                    end
+                    %%
+                    Dn=size(E_G_i,1);
+                    covar_term = zeros(Dn);
+                    for d1 = 1:Dn
+                        for d2 = 1:Dn%d1:Dn
+                            covar_term(d1,d2) = sum(sum(EPtP.*covCore(idx==d1, idx==d2)));
+                        end
+                    end
+                    
+                    %%
+                    EPtP = E_G_i*EPtP*E_G_i' + covar_term;
+%                     EPtP = EPtP_;
+                    
+                end
             end
             
         end
