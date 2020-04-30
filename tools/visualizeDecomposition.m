@@ -5,7 +5,12 @@ function visualizeDecomposition(A,G,labels_mode,xaxis_mode)
 % A:    Cell with factor matrices
 % G:    Core array (empty => CP model)
 % labels_mode:  A cell array containing strings with labels on each mode
-
+if nargin < 2
+    G = [];
+end
+if nargin < 3
+    labels_mode = [];
+end
 if nargin < 4
     xaxis_mode=[];
 end
