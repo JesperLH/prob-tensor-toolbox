@@ -59,12 +59,14 @@ classdef OrthogonalFactorMatrix < FactorMatrixInterface
                     % Get expected value
                     if self.num_updates < 1 % Use MAP estimate for the first update. Note the entropy will be wrong..
                         self.efactor = UU*VV';
-%                         self.entropy = -1e+100;
+                        self.entropy = -1e+100;
                     else
                         self.efactor = UU*diag(f)*VV';
-%                         self.entropy = lF-sum(self.factor(:).*self.efactor(:));
+                        self.entropy = lF-sum(self.factor(:).*self.efactor(:));
+                        %assert(any(f)>0) % Note, if f is a zero vector,
+                        %then this zeros the data reconstruction.
                     end
-                    self.entropy = lF-sum(self.factor(:).*self.efactor(:));
+%                     self.entropy = lF-sum(self.factor(:).*self.efactor(:));
                     self.num_updates = self.num_updates + 1;
                 
                     assert(isreal(self.entropy));
