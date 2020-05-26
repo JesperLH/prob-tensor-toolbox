@@ -5,9 +5,10 @@ function [ isDiverging, varargout ] = isElboDiverging(...
 %   Detailed explanation goes here
 
 isDiverging = delta_cost < 0; % Negative slope
-
+if nargout > 1
 for i = 1:nargin-3
     varargout{i} = inf; %#ok<AGROW>
+end
 end
 
  if nargin > 3 && delta_cost < conv_crit % Variable inputs
