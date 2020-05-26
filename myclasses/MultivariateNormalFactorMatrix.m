@@ -229,7 +229,7 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
             if self.observations_share_prior
                 
                 ePrior = self.hyperparameter.getExpFirstMoment();
-                logp = numel(self.factor)/2*log(2*pi);
+                logp = -numel(self.factor)/2*log(2*pi);
                 
                 if isscalar(ePrior)
                     logp = logp + prod(self.factorsize)/2*self.hyperparameter.getExpLogMoment()...
