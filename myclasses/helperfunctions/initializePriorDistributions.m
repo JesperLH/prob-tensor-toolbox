@@ -1,7 +1,7 @@
 function [factors, priors, shares_prior ] = initializePriorDistributions(...
                                         N, D, missing, ... 
                                         constraints,...
-                                        inference_scheme)
+                                        inference_scheme,lambda_a0,lambda_b0)
 %INITIALIZEPRIORDISTRIBUTIONS initializes the factor and (hyper)prior
 %distributions for a CP model according to the constraints and inference
 %schemes. 
@@ -172,8 +172,7 @@ for i = 1:Nx
         
         % Determine how many "observations" have this prior.
         idx_shared = find(my_contains(input_prior_distr, prior_distr) & ~idx_individual_prior);
-        if isempty(idx_shared)... % �|| strcmpi(prior_distr, 'sparse') 
-                ||length(idx_shared) == 1
+        if isempty(idx_shared) ||length(idx_shared) == 1
             Ni = N(i);
             Neffective = [];
         else
@@ -191,10 +190,10 @@ for i = 1:Nx
         
         %% Actually initialize the prior-object.
         if any(strcmpi(prior_distr,{'scale', 'ard', 'sparse'}))
-            a0=[]%1e-3
-            b0=[]%1e-3
+            %lambda_a0=[]%1e-3
+            %lambda_b0=[]%1e-3
             priors{i} = GammaHyperParameter(factor_distr, prior_distr,...
-                [Ni,D(i)],a0,b0,inference_scheme{i,2}, Neffective);
+                [Ni,D(i)],lambda_a0,lambda_b0,inference_scheme{i,2}, Neffective);
         elseif strcmpi(prior_distr,'constant')
             constr_value=1;
             priors{i} = HyperParameterConstant([N(i), D(i)], constr_value);

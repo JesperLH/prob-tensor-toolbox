@@ -172,7 +172,7 @@ N=size(X); %Elements in each dimension
 % Initialize distributions according to the specified constraints
 [factors, priors, shares_prior] = initializePriorDistributions(...
     N,D, has_missing_marg, ...
-    constraints, inference_scheme);
+    constraints, inference_scheme, lambda_alpha0, lambda_beta0);
 
 % Get relevant expected moments of the factors and setup X and R matricized
 % for each mode. 
