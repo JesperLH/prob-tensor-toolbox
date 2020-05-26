@@ -151,7 +151,7 @@ classdef (Abstract) FactorMatrixInterface < handle
                     
                     %%
                     EPtP = E_G_i*EPtP*E_G_i' + covar_term;
-%                     EPtP = EPtP_;
+                    assert(~any(isnan(EPtP(:))),'Variable contain NaN values!!')
                     
                 end
             end
