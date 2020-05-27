@@ -36,9 +36,9 @@ classdef CorePriorGamma < HyperParameterInterface
             
             obj.prior_property = enforced_property;
             if strcmpi(enforced_property, 'sparse')
-                obj.prior_value = obj.hp_alpha/obj.hp_beta*ones(coresize);
+                obj.prior_value = obj.hp_alpha/obj.hp_beta*ones(prod(coresize),1);
             elseif strcmpi(enforced_property, 'ard')
-                obj.prior_value = obj.hp_alpha/obj.hp_beta*ones(1,sum(coresize));
+                obj.prior_value = obj.hp_alpha/obj.hp_beta*ones(sum(coresize),1);
             elseif strcmpi(enforced_property, 'scale')
                 obj.prior_value = obj.hp_alpha/obj.hp_beta;
             end
@@ -64,9 +64,8 @@ classdef CorePriorGamma < HyperParameterInterface
                 M = length(self.coresize);
                 invD = cumsum([0,self.coresize(end:-1:1)]); % Indexing
                 for i=1:M
-                    val = krprod(val,self.prior_value(invD(i)+1:invD(i+1))');
+                    val = krprod(val,self.prior_value(invD(i)+1:invD(i+1)));
                 end
-                
             else
                 val = self.prior_value;
             end
@@ -81,8 +80,9 @@ classdef CorePriorGamma < HyperParameterInterface
                 val = 1;
                 invD = cumsum([0,self.coresize(end:-1:1)]); % Indexing
                 for i=1:M % M:-1:1 % Order is already switched....
-                    val = krprod(val,self.prior_log_value(invD(i)+1:invD(i+1))');
+                    val = krprod(val,self.prior_log_value(invD(i)+1:invD(i+1)));
                 end
+                
             else
                 val = self.prior_log_value;
             end
@@ -145,9 +145,11 @@ classdef CorePriorGamma < HyperParameterInterface
                     -(self.hp_alpha-1)*psi(self.hp_alpha)...
                     +gammaln(self.hp_alpha));
             else
-                entropy_contr =-sum(log(self.est_beta(:)))+...
-                    sum(self.est_alpha(:)-(self.est_alpha(:)-1)...
-                    .*psi(self.est_alpha(:))+gammaln(self.est_alpha(:)));
+                entropy_contr =-sum(log(self.est_beta(:)))...
+                    + numel(self.est_beta)/numel(self.est_alpha)...  
+                    * sum(self.est_alpha(:)-(self.est_alpha(:)-1)...
+                    .* psi(self.est_alpha(:))+gammaln(self.est_alpha(:)));
+                
             end
         end
         
@@ -174,20 +176,23 @@ classdef CorePriorGamma < HyperParameterInterface
             if ~isempty(self.est_alpha)
                 Psi = self.est_alpha./self.est_beta; % Expected Psi
             else
-                Psi = self.prior_value(1)*ones(1,sum(self.coresize));
-                self.est_alpha = nan(1,sum(self.coresize));
-                self.est_beta = nan(1,sum(self.coresize));
+                Psi = self.prior_value(1)*ones(sum(self.coresize),1);
+                self.est_alpha = nan(sum(self.coresize),1);
+                self.est_beta = nan(sum(self.coresize),1);
             end
             
             %%
             for i_up = 1:num_updates
-                for i_m = randperm(M)%1:M
+                %[~,mode_update_order] = sort(self.coresize,'descend'); % Largest mode first
+                mode_update_order = randperm(M); % at random
+                %mode_update_order = 1:M; % 
+                for i_m = mode_update_order
                     % Update each mode-ARD
                     ind = 1:M; ind(i_m) = [];
-                    eP = 1;
-                    for i=ind(end:-1:1)
-                        i=M-i+1;
-                        eP = krprod(eP,Psi(invD(i)+1:invD(i+1))');
+                    
+                    eP=1;
+                    for i=(M-ind(end:-1:1)+1)
+                       eP = krprod(eP,Psi(invD(i)+1:invD(i+1)));
                     end
                     
                     assert(size(eP,1)==prod(self.coresize(ind)),'Sizes should not differ!')
