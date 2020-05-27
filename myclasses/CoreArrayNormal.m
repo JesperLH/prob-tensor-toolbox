@@ -19,6 +19,7 @@ classdef CoreArrayNormal < CoreArrayInterface
         prior_mean=[];
         all_factors_are_orthogonal;
         prior_choice=[];
+        model_beta_scale;
     end
     
     
@@ -34,20 +35,22 @@ classdef CoreArrayNormal < CoreArrayInterface
             obj.data_has_missing = has_missing;
             obj.all_factors_are_orthogonal = all_orthogonal;
             
+            obj.model_beta_scale = false; %(all_orthogonal && ~strcmpi(obj.prior_choice,'scale'))%...;
+            %|| strcmpi(obj.prior_choice,'ard')
+            
             obj.distribution = 'Multivariate Normal Distribution';
             assert(any(strcmpi(inference,obj.supported_inference_methods)),...
                 ' Specified inference procedure is not available (%s)', inference)
             obj.inference_method = inference;
             
             obj.scale_hyperparam = struct('Evalue',1,'Elogvalue',0,...
-                'alpha0',1e-6, 'beta0', 1e-6,...
-                'est_alpha',1e-6, 'est_beta', 1e-6,...
+                'alpha0',1, 'beta0', 1,...
+                'est_alpha',1, 'est_beta', 1,...
                 'logp',nan, 'entropy', nan);
             %obj.prior_mean = randn(shape);
         end
         
         function updateScaleHyperParam(self)
-            
             EGsq = self.getExpSecondMoment();
             ePrior = self.hyperparameter.getExpFirstMoment();
             if isscalar(ePrior)
@@ -62,16 +65,13 @@ classdef CoreArrayNormal < CoreArrayInterface
             self.scale_hyperparam.Evalue = self.scale_hyperparam.est_alpha/self.scale_hyperparam.est_beta;
             self.scale_hyperparam.Elogvalue = psi(self.scale_hyperparam.est_alpha)-log(self.scale_hyperparam.est_beta);
             
-            [entr, logp] = self.entropy_gamma(self.scale_hyperparam.est_alpha, self.scale_hyperparam.est_beta,...
-                self.scale_hyperparam.alpha0, self.scale_hyperparam.beta0);
-            
         end
         
         
         function updateCore(self, X, R, eFact, eFact2, eNoise)
             
-            if ~isempty(self.core) && self.all_factors_are_orthogonal && ~strcmpi(self.prior_choice,'scale')
-                self.updateScaleHyperParam();
+            if self.model_beta_scale && ~isempty(self.core)
+                 self.updateScaleHyperParam();
             end
             eBeta = self.scale_hyperparam.Evalue;
             
@@ -80,22 +80,19 @@ classdef CoreArrayNormal < CoreArrayInterface
                 krp = kron(krp,eFact{i});
             end
             
-            XU = reshape(krp'*X(:),self.coresize);
-            
+            XU = krp'*X(:);
             if self.all_factors_are_orthogonal || isempty(eFact2)
                 % All factor matrices are orthogonal
                 ePrior = self.hyperparameter.getExpFirstMoment();
                 if isscalar(ePrior)
-                    ePrior = reshape(ones(prod(self.coresize),1)*ePrior, self.coresize);
-                else
-                    ePrior = reshape(ePrior,self.coresize);
+                    ePrior = ones(prod(self.coresize),1)*ePrior;
                 end
                 
                 self.sigma_covar = (eNoise +eBeta*ePrior).^-1;
                 
                 if ~iscell(eNoise)
                     % Homoscedastic noise
-                    self.core = XU .* self.sigma_covar * eNoise;
+                    self.core = reshape(XU .* self.sigma_covar * eNoise, self.coresize);
                 elseif iscell(eNoise)
                     % Heteroscedastic noise
                     self.core = nan; %XU .* self.sigma_covar; %? TODO? Should eFact contain noise estimate?
@@ -120,13 +117,8 @@ classdef CoreArrayNormal < CoreArrayInterface
                 self.sigma_covar = (eNoise * eSigContri + eBeta*ePrior)\eye(prod(self.coresize));
                 self.sigma_covar = (self.sigma_covar+permute(self.sigma_covar,[2,1,3]))/2;
                 % Homoscedastic
-                self.core = reshape(self.sigma_covar*XU(:)*eNoise,self.coresize);
+                self.core = reshape((self.sigma_covar*eNoise)*XU,self.coresize);
                 
-            end
-            
-            if self.all_factors_are_orthogonal && ~strcmpi(self.prior_choice,'scale')
-                self.updateScaleHyperParam();
-%                 eBeta = self.scale_hyperparam.Evalue;
             end
         end
         
@@ -136,7 +128,13 @@ classdef CoreArrayNormal < CoreArrayInterface
                 eContribution = self.getExpSecondMoment();
                 distr_constr = 0.5;
             end
-%             self.updateScaleHyperParam();
+            
+            if self.model_beta_scale
+             %    self.updateScaleHyperParam(); Should not be allowed to
+             %    change without recaluclating  logp.
+            end 
+            
+
             eBeta = self.scale_hyperparam.Evalue;
             
             self.hyperparameter.updatePrior(eContribution*eBeta, distr_constr);
@@ -163,9 +161,15 @@ classdef CoreArrayNormal < CoreArrayInterface
             [entr_scale, logp_scale] = self.entropy_gamma(self.scale_hyperparam.est_alpha, self.scale_hyperparam.est_beta,...
                 self.scale_hyperparam.alpha0, self.scale_hyperparam.beta0);
             if strcmpi(self.inference_method,'variational')
-                cost = self.getLogPrior()+self.getEntropy() + entr_scale + logp_scale;
+                cost = self.getLogPrior()+self.getEntropy();
+                if self.model_beta_scale
+                    cost = cost + entr_scale + logp_scale;
+                end
             elseif strcmpi(self.inference_method,'sampling')
-                cost = self.getLogPrior() + logp_scale;
+                cost = self.getLogPrior();
+                if self.model_beta_scale
+                    cost = cost + logp_scale;
+                end
             end
             
         end
@@ -184,25 +188,36 @@ classdef CoreArrayNormal < CoreArrayInterface
             % Gets the prior contribution to the cost function.
             % Note. The hyperparameter needs to be updated before calculating
             %             this.
-            vectorize = @(v) v(:);
-            ePrior = self.hyperparameter.getExpFirstMoment();
-            n_obs_correction = prod(self.coresize)/numel(ePrior);
             if strcmpi(self.hyperparameter.prior_property,'sparse')
-                n_obs_correction = 1;
+                det_val = 1/2*sum(self.hyperparameter.getExpLogMoment());
             elseif strcmpi(self.hyperparameter.prior_property,'ard')
-                n_obs_correction = 1;
+                
+                M = length(self.coresize);
+                val = zeros(M,1);
+                invD = cumsum([0,self.coresize(end:-1:1)]); % Indexing
+                for i=1:M
+                    val(i) = sum(self.hyperparameter.prior_log_value(invD(i)+1:invD(i+1)));
+                end
+%                 det_val_old = n_obs_correction/2*sum(self.hyperparameter.getExpLogMoment());
+                det_val = sum((prod(self.coresize)./self.coresize(end:-1:1)')/2.*val);
+
             elseif strcmpi(self.hyperparameter.prior_property,'scale')
-                n_obs_correction = prod(self.coresize);
+                det_val = prod(self.coresize)/2*sum(self.hyperparameter.getExpLogMoment());
+                
             end
             
-            logp = prod(self.coresize)/2*(-log(2*pi)) ...
-                + n_obs_correction/2*sum(vectorize(self.hyperparameter.getExpLogMoment()))...
-                + prod(self.coresize)/2*self.scale_hyperparam.Elogvalue;
+            logp = prod(self.coresize)/2*(-log(2*pi)) ...   
+                + det_val;
             
-            logp = logp ...
-                -0.5*sum(diag(self.getExpSecondMoment())...
-                .*vectorize(self.hyperparameter.getExpFirstMoment())*self.scale_hyperparam.Evalue);
-            
+            if self.model_beta_scale
+                logp = logp+prod(self.coresize)/2*self.scale_hyperparam.Elogvalue...
+                    -0.5*sum(diag(self.getExpSecondMoment())...
+                    .*self.hyperparameter.getExpFirstMoment()*self.scale_hyperparam.Evalue);
+            else
+                logp = logp ...
+                    -0.5*sum(diag(self.getExpSecondMoment())...
+                    .*self.hyperparameter.getExpFirstMoment());
+            end
         end
         
         function samples = getSamples(self, num_samples)
