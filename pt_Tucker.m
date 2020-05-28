@@ -76,7 +76,7 @@ function [E_CORE, E_FACT,E_FACT2, E_Lambda, Lowerbound, model,all_samples]=pt_Tu
 %                   value at each iteration is returned.
 %
 %% Initialize paths
-if exist('./setup_paths.m') && ~exist('CoreArrayInterface.m')
+if exist('./setup_paths.m') && ~exist('CoreArrayInterface.m') %#ok<*EXIST>
     evalc('setup_paths');
 end
 
@@ -88,9 +88,9 @@ paramNames = {'conv_crit', 'maxiter', ...
     'init_method','inference','noise','init_factors','impute missing',...
     'init_noise', 'fix_factors', 'fix_noise'};
 defaults = {1e-8, 100, ...
-    true , 1  , 1e-5, 1e-6,...
-    true , 1 , 1e-4, 1e-4,...
-    true , 1 , 1e-5, 1e-6,...
+    true , 1 , 1 , 1, ...
+    true , 1 , 1, 1, ... 
+    true , 1 , 1, 1, ... 
     [], 'variational',false(ndims(X),1), [], false,[], [], []};
 % Initialize variables to default value or value given in varargin
 [conv_crit, maxiter, ...
@@ -107,18 +107,6 @@ update_core_prior =model_psi;
 update_core_array =true;
 
 if debug_mode
-    model_tau = true;
-    model_lambda = true;
-    update_core_prior = true;
-    fixed_core = 0; 
-    fixed_lambda = 1;%3;
-    fixed_tau = 1;
-    fixed_psi = 1;
-    conv_crit = 1e-8;
-    alpha_psi = 1e-5;
-    beta_psi = 1e-6;
-    tau_alpha0 = 1e-5;
-    tau_beta0 = 1e-6;
 end
 
 init_nway_tucker = false; init_ml_als = false; init_using_sampling=false;
@@ -126,21 +114,25 @@ if strcmpi(init_method,'sampling')
     init_using_sampling=true;
 elseif strcmpi(init_method,'nway')
     init_nway_tucker = true;
-elseif strcmpi(init_method,'ml')
+elseif strcmpi(init_method,'ml-step')
     init_ml_als = true;
+elseif strcmpi(init_method,'bayes-step')
+    
 elseif ~isempty(init_method)
     error('Initialization method "%s" is unknown.',init_method)
 else % default
-    init_using_sampling=true;
+   init_using_sampling=true;
 %     init_nway_tucker = true;
 %     init_ml_als = true;
 end
 
 all_orthogonal = all(my_contains(factor_constraints,'orthogonal','IgnoreCase',true));
 any_othogonal_factors = any(my_contains(factor_constraints,'orthogonal','IgnoreCase',true));
-% all_orthogonal = false;
-
-if all_orthogonal
+%all_orthogonal = false;
+% 
+if all_orthogonal && conv_crit < 1e-6
+    warning('When only modelling orthogonal factors, convergence tolerance lower than 1e-6 is not advised.')
+   conv_crit = 1e-6;
 end
 
 % Check input is allowed (and sensible)
@@ -185,7 +177,7 @@ N=size(X); %Elements in each dimension
 % Initialize distributions according to the specified constraints
 [factors, priors, shares_prior] = initializePriorDistributions(...
     N,D, has_missing, ...
-    factor_constraints, inference_scheme);
+    factor_constraints, inference_scheme, lambda_alpha0, lambda_beta0);
 
 core_inference_scheme = inference_scheme{1,1};%%'variational';
 core_prior = CorePriorGamma('normal',core_constraint, D, alpha_psi, beta_psi, core_inference_scheme);
@@ -271,7 +263,6 @@ noiseType = []; % TODO: Extend GammaNoise.m to handle both CP and Tucker
 % Initialize Core Array
 if init_nway_tucker
     nway_constr = 2*ones(1,ndims(X)); % unconstrained
-    
     nway_constr(my_contains(factor_constraints,'orthogonal','IgnoreCase',true))=0;
     %     nway_constr(my_contains(factor_constraints,'nonneg','IgnoreCase',true))=1;
     %     % nonneg constraint gives missing function "nonneg" error in nway-tucker
@@ -279,7 +270,7 @@ if init_nway_tucker
     if debug_mode
         [E_FACT, E_CORE,~] = tucker(X, D,[],nway_constr);
     else
-        [~,E_FACT, E_CORE,~] = evalc('tucker(X, D,[],nway_constr)');
+        [~,E_FACT, E_CORE,~] = evalc('tucker(X, D,[],nway_constr)'); %#ok<UNRCH>
     end
     
     for i =  find(my_contains(factor_constraints,'nonneg','IgnoreCase',true)) % TODO FIND ALTERNATIVE!
@@ -306,12 +297,13 @@ elseif init_ml_als % 1 step of ML-ALS
     
 elseif init_using_sampling && only_variational_inference
     if debug_mode
-        [E_CORE, E_FACT,E_FACT2, E_Lambda,~,model]=pt_Tucker(X,D,factor_constraints, core_constraint,...
-            'Inference','sampling','maxiter',10);
+        [E_CORE, E_FACT,E_FACT2, E_Lambda,~,model]=pt_Tucker(X,D,factor_constraints, ...
+            'scale',...core_constraint,...
+            'Inference','sampling','maxiter',10, 'model_tau',true, 'model_psi', false);
     else
         [~, E_CORE, E_FACT,E_FACT2, E_Lambda,~,model]=evalc(['pt_Tucker(',...
-            'X,D,factor_constraints, core_constraint,'...
-            '''Inference'',''sampling'',''maxiter'',10)']);
+            'X,D,factor_constraints,''scale'', '... core_constraint,'...
+            '''Inference'',''sampling'',''maxiter'',10,''model_tau'',true,''model_psi'',false)']);
     end
     core_array.core = E_CORE;
     core_array.sigma_covar = model.core.sigma_covar;
@@ -328,16 +320,19 @@ end
 if init_ml_als || init_nway_tucker
     % Initialize relevant variables..
     % Prior on core %%%% TODO! This should be handled in the core-class
-    E_psi_core = (alpha_psi/beta_psi*ones(size(E_CORE)));
-    E_log_psi_core = (psi(alpha_psi)-log(beta_psi))*ones(size(E_CORE));
+    E_psi_core = core_prior.getExpFirstMoment();
+    %E_log_psi_core = core_prior.getExpLogMoment();
+    
+    if numel(E_psi_core) == numel(E_CORE)
+   %     E_psi_core = reshape(E_psi_core,size(E_CORE));
+    else
+        E_psi_core = repmat(E_psi_core,size(E_CORE));
+    end
     
     % Update expected second moment of the core.
-    sigma_sq_core=(Etau+E_psi_core).^-1;
-    
-    covCore = diag(sigma_sq_core(:));
+    covCore = diag((Etau+E_psi_core(:)).^-1);
     core_array.core = E_CORE;
     core_array.sigma_covar = covCore;
-%     E_CORE_sq=E_CORE(:)*E_CORE(:)'+diag(sigma_sq_core(:));
     E_CORE_sq = core_array.getExpSecondMoment();
 end
 
@@ -360,11 +355,6 @@ end
 %     SST = noiseType.getSST();
 % end
 SST = sum(X(:).^2);
-
-if debug_mode
-    X_recon = nmodel(E_FACT, E_CORE);
-    fprintf('Initial sol: %6.4e\n',rms(X(:)-X_recon(:)))
-end
 
 %% Initialize variables for storing Gibbs samples
 initialize_sample_storage = true;
@@ -437,6 +427,23 @@ while  delta_cost>=conv_crit && iter<maxiter || ... %
     time_tic_toc = tic;
     time_cpu = cputime;
     
+   %% Update core-array G
+    if update_core_array && iter > fixed_core
+        core_array.updateCore(X, R, E_FACT, E_FACT2, Etau);
+    end
+    E_CORE = core_array.getExpFirstMoment();
+    E_CORE_sq = core_array.getExpSecondMoment();
+    covCore = core_array.sigma_covar;
+    
+    if update_core_prior && iter > fixed_psi
+        core_array.updateCorePrior(E_CORE_sq,0.5);
+    end
+    E_psi_core = core_prior.getExpFirstMoment();
+    E_log_psi_core = core_prior.getExpLogMoment();
+    
+    cost = 0;
+    cost = cost + core_prior.calcCost() + core_array.calcCost();
+    
     %% Update factor matrices (one at a time)
     for i = 1:Nx
         
@@ -475,7 +482,7 @@ while  delta_cost>=conv_crit && iter<maxiter || ... %
     end
     
     % Calculate ELBO/cost contribution
-    cost = 0;
+    %cost = 0;
     for i = 1:Nx
         if ~shares_prior(i)
             cost = cost + factors{i}.calcCost()...
@@ -511,20 +518,20 @@ while  delta_cost>=conv_crit && iter<maxiter || ... %
     end
     
     %% Update core-array G
-    if update_core_array && iter > fixed_core
-        core_array.updateCore(X, R, E_FACT, E_FACT2, Etau);
-    end
-    E_CORE = core_array.getExpFirstMoment();
-    E_CORE_sq = core_array.getExpSecondMoment();
-    covCore = core_array.sigma_covar;
+%     if update_core_array && iter > fixed_core
+%         core_array.updateCore(X, R, E_FACT, E_FACT2, Etau);
+%     end
+%     E_CORE = core_array.getExpFirstMoment();
+%     E_CORE_sq = core_array.getExpSecondMoment();
+%     covCore = core_array.sigma_covar;
     
-    if update_core_prior && iter > fixed_psi
-        core_array.updateCorePrior(E_CORE_sq,0.5);
-    end
-    E_psi_core = core_prior.getExpFirstMoment();
-    E_log_psi_core = core_prior.getExpLogMoment();
-    
-    cost = cost + core_prior.calcCost() + core_array.calcCost();
+%     if update_core_prior && iter > fixed_psi
+%         core_array.updateCorePrior(E_CORE_sq,0.5);
+%     end
+%     E_psi_core = core_prior.getExpFirstMoment();
+%     E_log_psi_core = core_prior.getExpLogMoment();
+%     
+%     cost = cost + core_prior.calcCost() + core_array.calcCost();
 %     core_array.hyperparameter.calcCost()
     %% Update missing imputation
     % TODO:
@@ -556,7 +563,6 @@ while  delta_cost>=conv_crit && iter<maxiter || ... %
             EPtP = kron(EPtP,E_FACT2{i});
         end
         SSE = SST + sum(sum( E_CORE_sq .* EPtP)) -2 *X(:)'*E_Rec(:);
-%         SSE = SST + sum(sum( (E_CORE(:)*E_CORE(:)'+covCore) .* EPtP)) -2 *X(:)'*E_Rec(:);
     end
     
     if debug_mode
@@ -579,7 +585,8 @@ while  delta_cost>=conv_crit && iter<maxiter || ... %
     [H_tau, prior_tau]=entropy_gamma(est_tau_alpha, ...
         est_tau_beta, tau_alpha0, tau_beta0);
     
-    cost = cost ... % from factors and their priors
+    
+    cost = cost ... % from corearray, factors, and their priors
         -prod(N)/2*log(2*pi)+prod(N)/2*E_log_tau-0.5*SSE*Etau ...
         +prior_tau+H_tau ;
     
@@ -617,14 +624,23 @@ while  delta_cost>=conv_crit && iter<maxiter || ... %
     % delta_cost is only garanteed to be positive for variational
     % inference, so for sampling, it should just keep going until the
     % change is low enough.
-    if delta_cost <0 && any_othogonal_factors && iter <= 5
+    
+    if debug_mode
+        assert(sum(E_CORE(:).^2) > 1e-30,' SSE CORE was essentially zero (%6.4e)! at iteration %i',sum(E_CORE(:).^2),iter)
+        for i = 1:ndims(X)
+            assert(sum(E_FACT{i}(:).^2) > 1e-30,' SSE A{%i} was essentially zero (%6.4e)! at iteration %i',i, sum(E_FACT{i}(:).^2),iter)
+        end
+    end
+    
+    if delta_cost <0 && any_othogonal_factors && iter <= 1
         warning('Lowerbound decreased during the MAP updating of the orthogonal factors.')
         delta_cost = max(abs(delta_cost),conv_crit*10); % Ensure the algorithm doesnt terminate..
     end
-        
     
     if only_variational_inference && ~usr_impute_missing 
         if iter > 1 % Due to MAP estimate of orthogonal factors..
+%             isElboDiverging(...
+%                 iter, delta_cost, conv_crit);
             [~, c_fixed_psi, c_fixed_lambda, c_fixed_tau] = isElboDiverging(...
                 iter, delta_cost, conv_crit,...
                 {'hyperprior (core)', update_core_prior, fixed_psi},...
