@@ -15,7 +15,7 @@ for i = 1:length(distXY)
     Y = rand(d,N);
     distXY(i) = amariDist(X,Y,d); 
     distYX(i) = amariDist(Y,X,d); 
-end;
+end
 
 %% Illustrate the distances measured
 xmax = max(max(distXY(:)),max(distYX(:)));
