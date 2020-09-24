@@ -110,10 +110,10 @@ if D == 1
     fixed_tau = 0;
 else
     % The modeling delay time must be lower than the maximum number of iterations
-    if maxiter < fixed_lambda
+    if maxiter <= fixed_lambda
         fixed_lambda=floor(maxiter/2);
     end
-    if maxiter < fixed_tau
+    if maxiter <= fixed_tau
         fixed_tau=floor(maxiter/2);
     end
 end
@@ -181,16 +181,25 @@ E_FACT2 = cell(Nx,1);
 E_Contribution2FactorPrior = cell(Nx,1);
 E_Lambda = cell(Nx,1);
 
+if ~isempty(initial_factors)
+    % #TODO: If fewer are specified, set the remaining to empty [].
+    %       Additionally, the sizes could be checked.
+    assert(length(initial_factors) == Nx,'Number of initial factors must be equal to the number of modes')
+end
+
 for i = 1:Nx  % Setup each factor
     
     init_E2 = false;
     % Initialize factor as specified by the user (if provided)
     if ~isempty(initial_factors) && ~isempty(initial_factors{i})
+        
         if isobject(initial_factors{i}) ...
                 && strcmp(class(initial_factors{i}),class(factors{i}))
             % FactorMatrix object passed
             factors{i} = initial_factors{i};
             priors{i} = factors{i}.hyperparameter; % !TODO Investigate what this call brakes!
+            init_E2 = true;
+            E_FACT2{i} = factors{i}.getExpSecondMoment();
         elseif (ismatrix(initial_factors{i}) && ~isobject(initial_factors{i}))...
                     || iscell(initial_factors{i})
             if iscell(initial_factors{i})  % First and second moment passed
@@ -516,6 +525,8 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         % Cost contribution from the likelihood
         % - calculated for the "noise_final_mode", but includes a
         %   correction for all other modes (i.e. log(det(..)) )
+        % - TODO: Use smart method from "CoreArrayNormal.getLogPrior()". It
+        %           should work for full observed data.
         idx = 1:Nx; idx(noise_final_mode) = [];
         ldnp = Eln_tau{idx(1)};
         for i = idx(2:end)
@@ -639,6 +650,7 @@ Lowerbound(iter+1:end)=[];
    model.factors = factors;
    model.priors = priors;
    model.noise = noiseType;
+   model.shares_prior = shares_prior;
    model.cost = Lowerbound;
    model.rmse = rmse;
    model.varexpl = Evarexpl;
