@@ -133,6 +133,9 @@ any_othogonal_factors = any(my_contains(factor_constraints,'orthogonal','IgnoreC
 if all_orthogonal && conv_crit < 1e-6
     warning('When only modelling orthogonal factors, convergence tolerance lower than 1e-6 is not advised.')
    conv_crit = 1e-6;
+   if strcmpi(core_constraint,'scale')
+       warning('Modelling all orthogonal factors and a scale prior might result in a lowerbound increase. Try including a non-orthogonal factor prior or different core prior.')
+   end
 end
 
 % Check input is allowed (and sensible)
