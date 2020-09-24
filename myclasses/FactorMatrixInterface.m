@@ -56,9 +56,9 @@ classdef (Abstract) FactorMatrixInterface < handle
             if isempty(eCore) % CP model
                 D = size(eFact{1},2);
                 
-                E_MTTP = eFact{ind(1)};
-                for i = ind(2:end)
-                    E_MTTP = krprod(eFact{i},E_MTTP);
+                E_MTTP = ones(1,D);
+                for i = ind(end:-1:1)
+                    E_MTTP = krprod(E_MTTP,eFact{i});
                 end
                 E_MTTP = Xm*E_MTTP; 
                 
@@ -81,15 +81,15 @@ classdef (Abstract) FactorMatrixInterface < handle
 
                         if iscell(eNoise)
                             % Heteroscedastic noise
-                            EPtP = bsxfun(@times, eFact2pairwise{ind(1)}(:,d_idx), eNoise{ind(1)});
-                            for i = ind(2:end)
-                                EPtP = krprod(bsxfun(@times, eFact2pairwise{i}(:,d_idx), eNoise{i}), EPtP);
+                            EPtP = bsxfun(@times, eFact2pairwise{ind(end)}(:,d_idx), eNoise{ind(end)});
+                            for i = ind(end-1:-1:1)
+                                EPtP = krprod(EPtP, bsxfun(@times, eFact2pairwise{i}(:,d_idx), eNoise{i}));
                             end
                         else
                             % Homoscedastic noise
-                            EPtP = eFact2pairwise{ind(1)}(:,d_idx);
-                            for i = ind(2:end)
-                                EPtP = krprod(eFact2pairwise{i}(:,d_idx), EPtP);
+                            EPtP = eFact2pairwise{ind(end)}(:,d_idx);
+                            for i = ind(end-1:-1:1)
+                                EPtP = krprod(EPtP, eFact2pairwise{i}(:,d_idx));
                             end
                         end
 
