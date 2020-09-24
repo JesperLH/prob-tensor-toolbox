@@ -16,19 +16,25 @@ X = reshape(X,DimX);
 name_modes = {'Samples', 'Emission', 'Excitation'};
 X = X/sqrt(var(X(:)));
 
-% Specify constraint
-constr = {'nonneg ard','nonneg constr', 'nonneg constr'};
+% Specify constraints
+constr = {'normal ard', 'normal ard', 'normal ard'};
+
+% Note, one can also enforce non-negativity, but the ARD process doesn't
+% work quite as well as in the unconstrained case. This is an issue with
+% the column-wise updating of non-negative factors.
+% constr = {'nonneg ard', 'nonneg ard', 'nonneg ard'};
+% X=addTensorNoise(X,5);
 
 %% Run
-[A,A2,lambda, cost, model] = VB_CP_ALS(X,D,constr,'maxiter',max_iter,...
+[A,AtA,lambda, cost, model] = VB_CP_ALS(X,D,constr,'maxiter',max_iter,...
     'inference','variational','model_tau',true);
 
-%%
+%% Visualize solution
 for i = 1:1
-    A = scaleAndSignAmb(A);
+    Asc = scaleAndSignAmb(A);
     
-    figure
-    [~, i_ard] = min(find(my_contains(constr,'ard')));
+    figure('Position',[100,400,800,400])
+    [i_ard] = min(find(my_contains(constr,'ard')));
     if isempty(i_ard)
         idx_min = 1:D;
     else
@@ -37,11 +43,11 @@ for i = 1:1
 
     for n = 1:ndims(X)
         subplot(2,ndims(X)+1,n);
-        plot(A{n}(:,idx_min));
+        plot(Asc{n}(:,idx_min));
         title(sprintf('Mode-%i, %s',n,name_modes{n}))
 
         subplot(2,ndims(X)+1,n+ndims(X)+1);
-        plot(A{n}(:,idx_min(1:3)));
+        plot(Asc{n}(:,idx_min(1:3)));
     end
     subplot(2,ndims(X)+1,n+1);
     if ~isempty(i_ard)
@@ -49,16 +55,17 @@ for i = 1:1
     end
 end
 %%
-figure
+figure('Position',[1000,400,800,400])
 for n = 1:ndims(X)
     subplot(1,ndims(X),n);
+    %muA = model.factors{n}.getExpFirstMoment();
     CI = model.factors{n}.getCredibilityInterval([0.025,0.975]);
-    A = model.factors{n}.getExpFirstMoment();
-
-    for d = idx_min
-        plotCI(1:size(A,1),A(:,d),squeeze(CI(:,d,:)))
+    
+    
+    for d = idx_min(1:3)
+        plotCI(1:size(A{n},1),A{n}(:,d),squeeze(CI(:,d,:)))
         hold on
     end
-
+    title(sprintf('Mode-%i, %s',n,name_modes{n}))
 end
 
