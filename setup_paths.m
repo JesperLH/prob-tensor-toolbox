@@ -1,4 +1,5 @@
 % setup-file
+addpath('./');
 addpath(genpath('./tools'))
 addpath('./myMatlab')
 addpath(genpath('./myclasses/'))
