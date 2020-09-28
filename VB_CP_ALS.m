@@ -198,6 +198,9 @@ for i = 1:Nx  % Setup each factor
             % FactorMatrix object passed
             factors{i} = initial_factors{i};
             priors{i} = factors{i}.hyperparameter; % !TODO Investigate what this call brakes!
+            % TODO: If init_noise has a different inference scheme than now
+            % specified, then the old one is used!!!
+            
             init_E2 = true;
             E_FACT2{i} = factors{i}.getExpSecondMoment();
         elseif (ismatrix(initial_factors{i}) && ~isobject(initial_factors{i}))...
@@ -280,7 +283,8 @@ if any(hetero_noise_modeling) % Does any modes have heteroscedastic noise
             if ~isempty(init_noise) && ~isempty(init_noise{i})
                 if isobject(init_noise{i}) && strcmp(class(noiseType{i}), class(init_noise{i}))
                     noiseType{i} = init_noise{i};
-                    
+                    % TODO: If init_noise has a different inference scheme than now
+            % specified, then the old one is used!!!
                 elseif isvector(init_noise{i}) && ~isobject(init_noise{i})
                     noiseType{i}.noise_value = init_noise{i};
                     noiseType{i}.noise_log_value = log(init_noise{i});
@@ -307,6 +311,8 @@ else
     if ~isempty(init_noise)
         if isobject(init_noise) && strcmp(class(noiseType), class(init_noise))
             noiseType = init_noise;
+            % TODO: If init_noise has a different inference scheme than now
+            % specified, then the old one is used!!!
 
         elseif isvector(init_noise) && ~isobject(init_noise)
             noiseType.noise_value = init_noise;
@@ -528,9 +534,9 @@ while delta_cost>=conv_crit && iter<maxiter || ...
         % - TODO: Use smart method from "CoreArrayNormal.getLogPrior()". It
         %           should work for full observed data.
         idx = 1:Nx; idx(noise_final_mode) = [];
-        ldnp = Eln_tau{idx(1)};
-        for i = idx(2:end)
-            ldnp = krsum(Eln_tau{i}, ldnp); % TODO: Ignore modes with no noise
+        ldnp = 1;
+        for i = idx(end:-1:1)
+            ldnp = krsum(ldnp,Eln_tau{i}); % TODO: Ignore modes with no noise
         end
         ldnp = R*ldnp;
         cost = cost + noiseType{noise_final_mode}.calcCost(ldnp);
