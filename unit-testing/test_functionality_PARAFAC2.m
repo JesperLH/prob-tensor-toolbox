@@ -7,26 +7,27 @@ classdef test_functionality_PARAFAC2 < matlab.unittest.TestCase
     properties (TestParameter)
         
         create_missing = {false};%, true};
-        initialization_scheme = {''};
+        initialization_scheme = {'random','probabilistic'};
         inference_scheme = {'variational'}%, 'sampling'};
-        n_fixedmodes = {2, 3};
+        n_fixedmodes = {1,2}%, 3};
         
         factor_constraint = {{'orthogonal'},... % 1
             {'normal constr'},... % 2
             {'nonneg constr'},... % 3
             {'nonneg expo constr'},... % 4
             {'normal constr', 'nonneg constr', 'nonneg expo constr'},... % 5
-            {'normal constr', 'normal scale',  'normal constr'},... % 6
-            {'normal constr', 'normal ard',  'normal constr'},... % 7
-            {'normal constr', 'normal wishart',  'normal constr'},... % 8
-            {'nonneg constr', 'nonneg scale','nonneg constr'},... % 9
-            {'nonneg constr', 'nonneg ard','nonneg constr'},... % 10
-            {'nonneg constr', 'nonneg sparse','nonneg constr'},... % 11
+            {'normal scale', 'normal constr',  'normal constr'},... % 6
+            {'normal ard', 'normal constr',  'normal constr'},... % 7
+            {'normal wishart', 'normal constr',  'normal constr'},... % 8
+            {'nonneg scale', 'nonneg constr','nonneg constr'},... % 9
+            {'nonneg ard', 'nonneg constr','nonneg constr'},... % 10
+            {'nonneg sparse', 'nonneg constr','nonneg constr'},... % 11
             {'nonneg constr', 'nonneg expo constr', 'normal constr'},... % 12
-            {'orthogonal', 'infinity', 'nonneg expo scale'}}; % 13
+            {'orthogonal', 'infinity', 'nonneg expo scale'},... % 13
+            {'infinity'}}; % 14
         instance_number = num2cell(1:1);
         % Possible settings for more extensive testing.
-        snr_db={'inf'}%'10'}%,'-5','-10'};
+        snr_db={'10'}%,'-5','-10'};'inf'}%
         model_tau = {true, false}
         model_lambda = {true, false}
         
@@ -59,6 +60,21 @@ classdef test_functionality_PARAFAC2 < matlab.unittest.TestCase
             m_obs = max_m_obs-K+1:max_m_obs;
                         
             [X,A,P] = generateDataParafac2(n_obs, m_obs,n_components, fact_constr);
+            
+%             load('../../Data/Amino_Acid_fluo/amino.mat','X','DimX');
+%             Y = permute(reshape(X,DimX),[2,3,1]);
+%             load('../../Data/life_ku/Sugar_Process/sugar_Process/data.mat')
+%             Y = reshape(X,DimX);
+%             K=size(Y,3);
+%             clear X;
+%             for k = K:-1:1
+%                 X{k} = Y(:,:,k);
+%             end
+            
+            
+%             for k = 1:K
+%                 X{k} = X{k}/(var(X{k}(:))^(1/ndims(X{k})));
+%             end
             
             % add noise
             ns_lvl = str2num(snr_db);
