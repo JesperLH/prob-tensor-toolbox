@@ -341,7 +341,7 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                 sig = sqrt(self.factor_sig2(:,d));
                 self.factor(:,d) = trandn( (lb-mu)./sig, (ub-mu)./sig ).*sig+mu;
 
-                self.factor_var = 0; % The variance of 1 sample is zero
+                self.factor_var = zeros(self.factorsize); % The variance of 1 sample is zero
                 %self.logZhatOUT(:,d) = truncNorm_logZ(lb, ub, mu , self.factor_sig2(:,d));
             end
         end
