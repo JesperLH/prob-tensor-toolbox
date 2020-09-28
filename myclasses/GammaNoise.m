@@ -70,20 +70,31 @@ classdef GammaNoise < NoiseInterface
             if sum(self.number_of_elements) ~= nnz(Xm)
                 % If the noise prior was passed from another dataset
                 updateNumberOfElements(self,Xm,Rm);
+                % #TODO, we don't want his if the prior is fixed, but we
+                % might want it when using predictCP to update the prior...
+                % #Also, is it the same in heteroscedastic?
             end
             
             if self.has_missing_values
+                D = size(eFact{1},2);
                 ind = 2:length(eFact);
                 
                 B_unf = computeUnfoldedMoments(eFact(ind),{[]});
-
-                kr_ = B_unf{1};
-                kr2_ = eFact2pairwise{ind(1)};
-                for i = ind(2:end)
-                    kr_ = krprod(B_unf{i-1}, kr_);
-                    kr2_ = krprod(eFact2pairwise{i}, kr2_);
-                    
+                
+                kr_ = ones(1,D^2);
+                kr2_ = ones(1,D^2);
+                for j = length(ind):-1:1
+                    kr_ = krprod(kr_, B_unf{j});
+                    kr2_ = krprod(kr2_, eFact2pairwise{ind(j)});
                 end
+
+%                 kr_ = B_unf{1};
+%                 kr2_ = eFact2pairwise{ind(1)};
+%                 for i = ind(2:end)
+%                     kr_ = krprod(B_unf{i-1}, kr_);
+%                     kr2_ = krprod(eFact2pairwise{i}, kr2_);
+%                     
+%                 end
                 
 %                 sigA = eFact2{1}-eFact{1}.^2;
 %                 sigB = kr2-kr.^2;
@@ -106,7 +117,7 @@ classdef GammaNoise < NoiseInterface
             else
                 self.SSE=(self.SST+sum(sum(krkr))-2*sum(sum(Xm.*(eFact{1}*kr'))));
             end
-            assert(self.SSE >= 0)
+            assert(self.SSE >= 0, 'SSE was negative!')
             sse = self.SSE;
         end
         
@@ -172,8 +183,9 @@ classdef GammaNoise < NoiseInterface
                 krkr = eFact2{1};
             end
             
-            for i=2:length(eFact)
-                kr=krprod(eFact{i}, kr);
+            for i=length(eFact):-1:2
+%                 kr=krprod(eFact{i}, kr);
+                kr=krprod(kr,eFact{i});
                 if self.has_missing_values
 %                     kr2=krprod(eFact2{i}, kr2);
                 else

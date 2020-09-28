@@ -69,9 +69,13 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
             ind = 1:length(eNoise);
             ind(self.mode_idx) = [];
             
-            eNoises_kr = eNoise{ind(1)};
-            for i = ind(2:end)
-               eNoises_kr = krprod(eNoise{i}, eNoises_kr); 
+%             eNoises_kr = eNoise{ind(1)};
+%             for i = ind(2:end)
+%                eNoises_kr = krprod(eNoise{i}, eNoises_kr); 
+%             end
+            eNoises_kr = eNoise{ind(end)};
+            for i = ind(end-1:-1:1)
+               eNoises_kr = krprod(eNoises_kr,eNoise{i}); 
             end
             self.SST = sum(bsxfun(@times, Xm.^2, eNoises_kr'), 2); 
         end
@@ -83,30 +87,45 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
             if sum(self.number_of_elements) ~= nnz(Xm)
                 % If the noise prior was passed from another dataset
                 updateNumberOfElements(self,Xm,Rm);
+                % #TODO: Only update if we are also updating the prior?
             end
             
-            self.updateSST(Xm, eNoise);
+            self.updateSST(Xm, eNoise); %###
             
             if self.has_missing_values
+                D = size(eFact{1},2);
                 ind = 1:length(eFact);
                 ind(self.mode_idx) = [];
                 
                 B_unf = computeUnfoldedMoments(eFact(ind),{[]});
-
-                kr_ = B_unf{1};
-                kr2_ = eFact2pairwise{ind(1)};
-                if iscell(eNoise)
-                    noise_ = eNoise{ind(1)};
+                
+                kr_ = ones(1,D^2);
+                kr2_ = ones(1,D^2);
+                noise_ = ones(1,1);
+                for j = length(ind):-1:1
+                    kr_ = krprod(kr_, B_unf{j});
+                    kr2_ = krprod(kr2_, eFact2pairwise{ind(j)});
+                    if iscell(eNoise)
+                        noise_ = krprod(noise_, eNoise{ind(j)});
+                    end
                 end
                 
-                for i = 2:length(ind)
-                    kr_ = krprod(B_unf{i}, kr_);
-                    kr2_ = krprod(eFact2pairwise{ind(i)}, kr2_);
-                    if iscell(eNoise)
-                        noise_ = krprod(eNoise{ind(i)}, noise_);
-                    end
-                    
-                end
+%                 kr_ = B_unf{1};
+%                 kr2_ = eFact2pairwise{ind(1)};
+%                 if iscell(eNoise)
+%                     noise_ = eNoise{ind(1)};
+%                 end
+%                 
+%                 for i = 2:length(ind)
+%                     kr_ = krprod(B_unf{i}, kr_);
+%                     kr2_ = krprod(eFact2pairwise{ind(i)}, kr2_);
+%                     if iscell(eNoise)
+%                         noise_ = krprod(eNoise{ind(i)}, noise_);
+%                     end
+%                     
+%                 end
+                
+                
                 
 %                 sigA = eFact2{1}-eFact{1}.^2;
 %                 sigB = kr2-kr.^2;
@@ -249,8 +268,10 @@ classdef GammaNoiseHeteroscedastic < NoiseInterface
             ind = 1:length(eFact);
             ind(self.mode_idx) = [];
             
-            for i=ind
-                kr=krprod(eFact{i}, kr);
+%             for i=ind
+            for i = ind(end:-1:1)
+%                 kr=krprod(eFact{i}, kr);
+                kr=krprod(kr, eFact{i});
                 if self.has_missing_values
 %                     kr2=krprod(eFact2{i}, kr2);
                 else
