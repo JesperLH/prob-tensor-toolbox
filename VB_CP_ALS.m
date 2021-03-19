@@ -80,6 +80,10 @@ if exist('./setup_paths.m')==2 && ~exist('FactorMatrixInterface.m')
     evalc('setup_paths');
 end
 
+if ~exist('nmodel.m')
+   error('The N-way toolbox was not on path. Add it or download it at "http://www.models.life.ku.dk/nwaytoolbox".') 
+end
+
 %% Read input and Setup Parameters
 paramNames = {'conv_crit', 'maxiter', ...
     'model_tau', 'fixed_tau', 'tau_a0', 'tau_b0',...

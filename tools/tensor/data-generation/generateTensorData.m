@@ -67,6 +67,9 @@ if length(Ns)==2
     X = FACT{1}*FACT{2}';
 else
     % CP core
+    if ~exist('nmodel.m')
+       error('The N-way toolbox was not on path. Add it or download it at "http://www.models.life.ku.dk/nwaytoolbox".') 
+    end
     X = nmodel(FACT);
     
     % Tucker? 
