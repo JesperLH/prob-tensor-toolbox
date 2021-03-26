@@ -37,6 +37,11 @@ In CP decomposition, handling missing values is possible using either marginaliz
 2) For a demonstration of heteroscedastic noise estimation, run 'demo_heteroscedastic_CP.m'.
 3) For a demonstration on fluorescence spectroscopy data, run 'demo_AminoAcid.m'
 
+### Dependencies
+There is a few dependences on the N-way Toolbox, which is freely available at http://www.models.life.ku.dk/nwaytoolbox
+
+The toolbox uses the in-build MATLAB testing framework to assess backward compatibility, this requires the 'runtests()' function from MATLAB2016b. This means the toolbox should work out of the box from MATLAB2016b and onwards. Earlier versions are not tested and might work, partially work, or fail completely.
+
 
 # Notes regarding usage.
 All code can be used freely in research and other non-profit applications (unless otherwise stated in the third party licenses). 
