@@ -13,9 +13,9 @@ core_constraint = 'sparse'; % ('scale, 'ard', 'sparse')
 
 %% Simulate data
 sim_constr = zeros(1,length(N));
-sim_constr(contains(factor_distr,'nonneg')) = 3;
-sim_constr(contains(factor_distr,'normal')) = 7;
-sim_constr(contains(factor_distr,'ortho')) = 6;
+sim_constr(my_contains(factor_distr,'nonneg')) = 3;
+sim_constr(my_contains(factor_distr,'normal')) = 7;
+sim_constr(my_contains(factor_distr,'ortho')) = 6;
 snr_db = 10;
 [X, U, G] = generateTuckerData(N,D,sim_constr); 
 X = addTensorNoise(X,snr_db);

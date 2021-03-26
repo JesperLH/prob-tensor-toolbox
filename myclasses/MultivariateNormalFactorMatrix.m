@@ -61,7 +61,6 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
                     self.covariance = my_pagefun(@inv,...
                             bsxfun(@times, ekrkr, permute(eNoise{update_mode},[2,3,1]))...
                             +ePrior);
-                    self.covariance = my_pagefun(@symmetrizing,self.covariance);
 
                     self.factor = bsxfun(@times, squeeze(permute(my_pagefun(...
                             @mtimes, self.covariance, permute(Xmkr,[2,3,1])), [3,1,2])),...
@@ -93,7 +92,7 @@ classdef MultivariateNormalFactorMatrix < FactorMatrixInterface
         end       
         
         function updateFactorPrior(self, eFact2, distr_constr)
-            if strcmp(string(class(self.hyperparameter)),'GammaHyperParameter')
+            if strcmp((class(self.hyperparameter)),'GammaHyperParameter')
                 if nargin < 3
                     distr_constr = [];
                 end

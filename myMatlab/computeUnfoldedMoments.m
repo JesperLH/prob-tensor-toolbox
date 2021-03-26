@@ -17,8 +17,8 @@ else
         muA{i} = zeros(N,D^2);
 
         for d = 1:D
-            muA{i}(:,D*(d-1)+(1:D)) = first_moment{i}(:,1:end).*first_moment{i}(:,d);       
-
+            %muA{i}(:,D*(d-1)+(1:D)) = first_moment{i}(:,1:end).*first_moment{i}(:,d);  
+            muA{i}(:,D*(d-1)+(1:D)) = bsxfun(@times,first_moment{i}(:,1:end),first_moment{i}(:,d));
         end
         
         if ~isempty(second_moment{1})

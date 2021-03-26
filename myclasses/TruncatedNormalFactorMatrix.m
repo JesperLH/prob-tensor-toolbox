@@ -98,7 +98,7 @@ classdef TruncatedNormalFactorMatrix < FactorMatrixInterface
                     *bsxfun(@times,self.factor,sqrt(eNoise));...
                     
                 if strcmpi(self.inference_method,'variational')
-                    eFact2 = eFact2 + diag(sum(self.factor_var.*eNoise,1));
+                    eFact2 = eFact2 + diag(sum(bsxfun(@times,self.factor_var,eNoise),1));
                 end
             end
             

@@ -178,7 +178,7 @@ for i = 1:Nx
         else
             distr_const = 1./(1+~my_contains(input_factor_distr(idx_shared),'expo'));
             Ni = sum(N(idx_shared)); %#ok<FNDSB>
-            Neffective = N(idx_shared)*distr_const';
+            Neffective = N(idx_shared)*distr_const(:);
             if strcmpi(prior_distr, 'sparse') 
                Ni = N(i); 
                assert(all(N(i) == N(idx_shared)), 'Shared sparsity, but the number of observations differ!')
