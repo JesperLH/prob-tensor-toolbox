@@ -23,6 +23,6 @@ for d = 1:D
     measures(:,tmatch) = 0;
     measures(test,:) = 0;
 end
-avg_measure = mean(matched_measure);
+avg_measure = nanmean(matched_measure);
 
 end
