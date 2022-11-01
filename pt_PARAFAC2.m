@@ -61,6 +61,7 @@ n_samples = length(X);
 
 n_vary = cellfun(@(t) size(t,ndims(t)), X); % num. elem. in last dim.
 
+inference_p = 'map';
 
 %% Prior distributions
 if nargin < 3 || isempty(cp_constraints)
@@ -79,7 +80,8 @@ SST = sum(cellfun(@(t) sum(t(:).^2), X));
 % - Providing already estimated factors
 
 % Initialize noise (TODO)
-Etau= tau_alpha0./tau_beta0; %  1./(SST/prod(n_fixed)*sum(n_vary)); %
+Etau= tau_alpha0./tau_beta0; %  
+% Etau = 1./(10*mean(cellfun(@(t) var(t(:).^2), X)));%(SST/(prod(n_fixed)*sum(n_vary))); %
 Elog_tau = log(Etau);
 
 % Shifting mode
@@ -187,11 +189,26 @@ while iter < maxiter && (iter == 1 || delta_cost > conv_crit) ...
     end
     
     for k=n_samples:-1:1
-        % Update the von Mises-Fisher Distribution
-        factorPk{k}.updateFactor(1, matricizing(X{k},ndims(X{k})),[],[],[],...
-            {ones(1,D),Akr*diag(C(k,:))*F'},[],[],Etau)
-
-        P{k} = factorPk{k}.getExpFirstMoment();
+        if strcmpi(inference_p,'map')
+            % Hmm, is this garanteed to improve the ELBO?
+            % - Bonus we get orth P and this allows the CP step
+            [U,~,V]=svd(matricizing(X{k},ndims(X{k}))*Akr*(diag(C(k,:))*F'),'econ');
+            P{k}=U(:,1:D)*V(:,1:D)';
+                        
+        else
+            % Update the von Mises-Fisher Distribution
+            factorPk{k}.updateFactor(1, matricizing(X{k},ndims(X{k})),[],[],[],...
+                {ones(1,D),Akr*diag(C(k,:))*F'},[],[],Etau)
+            
+            % If this is a sample, then we are good (as it is orthogonal),
+            % but if its expectation (VB), then P{k} is not orthognal..
+            P{k} = factorPk{k}.getExpFirstMoment();
+            
+            %IDEA: What if we get multiple samples
+            %factorPk{k}.getSamples(10) and calculate the emperical average
+            %of E[X{k}*P{k}].. Does that help us? and how does it relate to
+            %the prob. AA idea
+        end
 
         % Data projection #TODO: No need to matricize X all the time..
         Y(:,:,k) = matricizing(X{k},ndims(X{k}))'*P{k};
@@ -288,8 +305,12 @@ while iter < maxiter && (iter == 1 || delta_cost > conv_crit) ...
     %% Calculate loglikelihood (sampling) or evidence lowerbound (VB)
     elbo = 0;
     % Contribution from the projection matrices
-    for k = 1:n_samples
-        elbo = elbo + factorPk{k}.calcCost();
+    if strcmpi(inference_p,'MAP')
+        % pass %
+    else
+        for k = 1:n_samples
+            elbo = elbo + factorPk{k}.calcCost();
+        end
     end
     
     % Contribution from the factor matrices
@@ -320,9 +341,7 @@ while iter < maxiter && (iter == 1 || delta_cost > conv_crit) ...
 
     fit_new = elbo;
     delta_cost = (fit_new-fit_old)/abs(fit_old);
-%     fprintf('Iter: %04i \tfit: %6.4e \tdelta(fit): %6.4e \t VarExpl: %4.3f\n',...
-%         iter,fit_new,delta_cost,1-SSE/SST)
-    
+   
     if iter > 5
         assert((1-SSE/SST)>0,'E[Var. Expl.] is negative... Bad initial solution?')
     end
@@ -337,12 +356,12 @@ while iter < maxiter && (iter == 1 || delta_cost > conv_crit) ...
     %% Check
     if iter>1 && only_variational_inference
         isElboDiverging(iter,delta_cost,conv_crit);
-%         [~, c_fixed_lambda, c_fixed_tau] = isElboDiverging(...
-%             iter, delta_cost, conv_crit,...
-%             {'hyperprior PF2 (lambda)', model_lambda, fixed_lambda},...
-%             {'noise PF2 (tau)', model_tau, fixed_tau});
-%         fixed_lambda = min(fixed_lambda, c_fixed_lambda);
-%         fixed_tau = min(fixed_tau, c_fixed_tau);
+        [~, c_fixed_lambda, c_fixed_tau] = isElboDiverging(...
+            iter, delta_cost, conv_crit,...
+            {'hyperprior PF2 (lambda)', model_lambda, fixed_lambda},...
+            {'noise PF2 (tau)', model_tau, fixed_tau});
+        fixed_lambda = min(fixed_lambda, c_fixed_lambda);
+        fixed_tau = min(fixed_tau, c_fixed_tau);
     elseif iter > 1
         delta_cost = abs(delta_cost);
     end

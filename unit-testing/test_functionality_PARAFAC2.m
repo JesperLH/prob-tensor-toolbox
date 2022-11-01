@@ -27,7 +27,7 @@ classdef test_functionality_PARAFAC2 < matlab.unittest.TestCase
             {'infinity'}}; % 14
         instance_number = num2cell(1:1);
         % Possible settings for more extensive testing.
-        snr_db={'10'}%,'-5','-10'};'inf'}%
+        snr_db={'10','-5'}%,'-10'};'inf'}%
         model_tau = {true, false}
         model_lambda = {true, false}
         

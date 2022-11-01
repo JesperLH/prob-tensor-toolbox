@@ -1,7 +1,30 @@
 # Unit test status
-Real time was 269.7928 sec.
-CPU time was 11.5156 sec.
+Real time was 1180.6148 sec.
+CPU time was 1219.1406 sec.
 
-Everything is able to run (all 1416 cases)
+Some testcases did not complete (23 of 448 cases), these should be investigated before committing.
 
-September 24, 2020 18:02:11
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=random,factor_constraint=value5,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=random,factor_constraint=value14,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=random,factor_constraint=value14,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=random,factor_constraint=value14,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value8,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p_10,model_tau=value2,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p_10,model_tau=value2,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value2,model_lambda=value1,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value2,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value2,model_lambda=value2,instance_number=value1,n_fixedmodes=value1)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value13,inference_scheme=variational,snr_db=p__5,model_tau=value2,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value14,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value14,inference_scheme=variational,snr_db=p_10,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value14,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value1,instance_number=value1,n_fixedmodes=value2)
+test_functionality_PARAFAC2/parafac2_decomp(initialization_scheme=probabilistic,factor_constraint=value14,inference_scheme=variational,snr_db=p__5,model_tau=value1,model_lambda=value2,instance_number=value1,n_fixedmodes=value2)
+October 05, 2020 09:30:28
