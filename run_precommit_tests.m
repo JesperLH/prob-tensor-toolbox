@@ -32,25 +32,31 @@ run_parallel = true;
 % else
 % Run unit tests: Non-negative CP, t-norm, expo and infinity (e.g. NCP)
 result_ncp = [];
-result_ncp = runtests('unit-testing/test_functionality_NCP_and_infinity.m','UseParallel',run_parallel);
+% result_ncp = runtests('unit-testing/test_functionality_NCP_and_infinity.m','UseParallel',run_parallel);
 % Run unit tests: Multivariate Normal CP (eg. CP)
 result_cp = [];
-result_cp = runtests('unit-testing/test_functionality_CP.m','UseParallel',run_parallel);
+% result_cp = runtests('unit-testing/test_functionality_CP.m','UseParallel',run_parallel);
 % Run unit tests: Integration of NCP and CP factors
 result_inte = [];
-result_inte = runtests('unit-testing/test_functionality_CP_and_NCP_integration.m','UseParallel',run_parallel);
+% result_inte = runtests('unit-testing/test_functionality_CP_and_NCP_integration.m','UseParallel',run_parallel);
 % Run unit tests: Integration of Orthogonal factors and NCP and CP factors
 % (No missing, and only homoscedastic noise)
 result_orth = [];
-result_orth = runtests('unit-testing/test_functionality_Orthogonal_integration.m','UseParallel',run_parallel);
+% result_orth = runtests('unit-testing/test_functionality_Orthogonal_integration.m','UseParallel',run_parallel);
 
 % TUCKER DECOMPOSITION
-% Run unit tests: Integration of Orthogonal factors and Normal Factors
+% Run unit tests: Tucker Core (Normal scale/ard/sparse) and different
+% factors (normal, truncated normal, exponential, orthogonal, uniform)
 % (No missing, and only homoscedastic noise)
 result_tucker = [];
 % result_tucker = runtests('unit-testing/test_functionality_Tucker.m','UseParallel',run_parallel);
 
-result = [result_ncp(:); result_cp(:); result_inte(:); result_orth(:); result_tucker(:)];
+% PARAFAC2 Decomposition
+results_parafac2  = [];
+results_parafac2  = runtests('unit-testing/test_functionality_PARAFAC2.m');
+
+result = [result_ncp(:); result_cp(:); result_inte(:); result_orth(:); ...
+    result_tucker(:); results_parafac2(:)];
 fprintf(fID, 'Real time was %6.4f sec.\n', toc(t0) );
 fprintf(fID, 'CPU time was %6.4f sec.\n\n', cputime-tCpu);
 
@@ -81,26 +87,29 @@ elseif strcmpi(computer('arch'), 'glnxa64')
 end
 %%!cat unit-testing/summary_of_tests.md
 
-if nargin < 1
-    keyboard
-end
-%%
-return
-
 %% Display details of failed cases
 failed_results = result(~idx_passed);
 
-for i = 1:length(failed_results)
-    fprintf(failed_results(i).Name);
-    fprintf('\n')
-    %fprintf(failed_results(i).Details.DiagnosticRecord);
-    disp(failed_results(i).Details.DiagnosticRecord.Exception)
-    fprintf('\n')
-    for j = 1:length(failed_results(i).Details.DiagnosticRecord.Stack)
-        disp(failed_results(i).Details.DiagnosticRecord.Stack(j))
+if ~isempty(failed_results)
+    diary(save_loc)
+    diary on
+    fprintf('\n\n-------------------------------\n--- Details on what failed  ---\n-------------------------------\n');
+    for i = 1:length(failed_results)
+        fprintf(failed_results(i).Name);
+        fprintf('\n')
+        %fprintf(failed_results(i).Details.DiagnosticRecord);
+        disp(failed_results(i).Details.DiagnosticRecord.Exception)
+        fprintf('\n')
+        for j = 1:length(failed_results(i).Details.DiagnosticRecord.Stack)
+            disp(failed_results(i).Details.DiagnosticRecord.Stack(j))
+        end
+        fprintf('--------------------------------------------------------\n\n')
     end
-    %fprintf(
-    fprintf('--------------------------------------------------------\n\n')
+    diary off
+end
+%%
+if nargin < 1
+    keyboard
 end
 end
     
