@@ -58,15 +58,7 @@ for i_noise = 1:length(noiselevels)
     %% Bayes BTD
     Dbtd = cat(1,btd_model_order{:});
     t0 = tic;
-    best_elbo = -inf;
-%     for irep = 1:5
-        [EG, EU, elbo] = pt_Tucker_BTD(X,Dbtd); 
-%         if elbo(end)>best_elbo
-%             best_elbo=elbo(end);
-%             EG=EG_;
-%             EU = EU_;
-%         end
-%     end
+    [EG, EU, elbo] = pt_Tucker_BTD(X,Dbtd); 
     time_elapsed(i_noise,3,i_rep) = toc(t0);
     
     % Convert to tensorlab format
