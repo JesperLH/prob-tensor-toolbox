@@ -47,3 +47,11 @@ corr(X(:),X_recon(:))
 %% Visualize
 figure;
 visualizeDecomposition(EA,EG);
+
+
+%% Demo Block Term Decomposition
+Dbtd = [2,3,1;1,2,3; 3,3,3];
+[E_G, E_U, ELBO] = pt_Tucker_BTD(X+randn(size(X))*sqrt(var(X(:))), Dbtd);
+
+figure;
+visualizeDecomposition(E_U,E_G);
