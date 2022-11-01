@@ -1,4 +1,4 @@
-function [E_G, E_U, ELBO] = VB_Tucker_BTD(X, D) %, E_G_init)
+function [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D) %, E_G_init)
 %% VB_TUCKER_BTD fits a Tucker decomposition model to X. The number of
 % components in each mode are determined by D. If a matrix is input, then
 % a block-diagonal structure is assumed (rows are blocks and columns are
