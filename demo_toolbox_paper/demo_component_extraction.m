@@ -22,7 +22,7 @@ constr = {'normal ard', 'normal ard', 'normal ard'};
 %constr = {'nonneg expo sparse', 'normal ard', 'orthogonal'};
 A_best = []; max_elbo = -inf;
 for i=1:5
-    [A,A2,lambda, elbo, model] = VB_CP_ALS(X,D,constr,'maxiter',100,...
+    [A,A2,lambda, elbo, model] = pt_CP_ALS(X,D,constr,'maxiter',100,...
     'inference','variational');
     if elbo(end)>max_elbo
             A_best=A; max_elbo = elbo(end);
@@ -50,7 +50,7 @@ suptitle('Visualization of Tensor Train')
 % Here with orthogonal factors, normal core, and elementwise sparsity on
 % core elements.
 D_est = [3,3,3];
-[EG, EU, elbo] = VB_Tucker_BTD(X,D_est);
+[EG, EU, elbo] = pt_Tucker_BTD(X,D_est);
 X_recon_tucker = nmodel(EU,EG);
 
 figure('Position',[200,100,1000,400])
@@ -60,7 +60,7 @@ suptitle('Visualization of Tucker')
 
 %% Tucker-BTD (preliminary work)
 D_est = 1*ones(3,3);
-[EG, EU, elbo] = VB_Tucker_BTD(X,D_est);
+[EG, EU, elbo] = pt_Tucker_BTD(X,D_est);
 X_recon_BTD = nmodel(EU,EG);
 
 figure('Position',[200,100,1000,400])

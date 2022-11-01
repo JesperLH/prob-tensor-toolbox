@@ -1,5 +1,5 @@
 function [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D) %, E_G_init)
-%% VB_TUCKER_BTD fits a Tucker decomposition model to X. The number of
+%% PT_TUCKER_BTD fits a Tucker decomposition model to X. The number of
 % components in each mode are determined by D. If a matrix is input, then
 % a block-diagonal structure is assumed (rows are blocks and columns are
 % number of modes). The factors are orthogonal (matrix von Mises-Fisher)
@@ -403,7 +403,7 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
             fixed_tau = min(fixed_tau, c_fixed_tau);
         catch ME
             warning('Lowerbound diverged, trying again with different starting point.')
-            [E_G, E_U, ELBO] = VB_Tucker_BTD(X, D); %, E_G_init)
+            [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D); %, E_G_init)
             return
         end
         
