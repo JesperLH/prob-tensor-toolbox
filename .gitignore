@@ -4,3 +4,4 @@
 *.err
 temp.mat
 demo_toolbox_paper/img
+BTDExperiments/*
