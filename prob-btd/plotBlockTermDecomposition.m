@@ -64,7 +64,7 @@ for ifac = 1:length(aest)
         plot([0 R R 0 0]+0.5,[0 0 S S 0]+0.5,'k');
         axis off;
     elseif strcmpi(plotstyles{ifac},'topo')
-        load('./btd_eeg_chanlocs.mat','eeg_chanlocs');
+        load('./prob-btd/btd_eeg_chanlocs.mat','eeg_chanlocs'); % Note, this is specific to one dataset!!
         B = aest{ifac};
         c_axis_lim = [min(B(:)), max(B(:))];
         for f = 1:size(B,2)
