@@ -13,7 +13,7 @@ x_plot =[x, fliplr(x)];
 y_plot=[ci(:,1)', flipud(ci(:,2))'];
 
 hold on
-plot(x, mu, 'color', plot_color, 'linewidth', 1)
+plot(x, mu, 'color', plot_color, 'linewidth', 2)
 fill(x_plot, y_plot, 1,'facecolor', fill_color, 'edgecolor', 'none', 'facealpha', 0.4,'HandleVisibility','off');
 hold off
 
