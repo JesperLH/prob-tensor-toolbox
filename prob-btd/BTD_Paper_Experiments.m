@@ -7,7 +7,7 @@ if nargin < 1
 end
 
 if nargin < 2
-    save_loc = 'BTDExperiments';
+    save_loc = 'BTDExperiments/';
 end
 if ~isfolder(save_loc), mkdir(save_loc); end
 
@@ -196,7 +196,7 @@ switch s
 
     case 'flowinj'
         %% Flow
-        load('../Data/life_ku/Flow-Injection\fia.mat','X','DimX')
+        load('../Data/life_ku/Flow-Injection/fia.mat','X','DimX')
         X = reshape(X,DimX);
     
     case 'eeg'

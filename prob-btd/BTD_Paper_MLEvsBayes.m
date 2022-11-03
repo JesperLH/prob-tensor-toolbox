@@ -1,11 +1,13 @@
 % Compare MLE BTD and Bayesian BTD
+function BTD_Paper_MLEvsBayes(bool_too_many_components)
 addpath('../thirdparty-matlab/tensorlab_2016-03-28/')
+bool_too_many_components=logical(bool_too_many_components);
 
 N = [40,40,40];
 n_repeats=100;
 noiselevels = [-20:2.5:40]; %[10,20,30]; % In dB20:5:30%
 
-for bool_too_many_components = [true,false]
+%for bool_too_many_components = [true,false]
     btd_model_order = {[3,3,3], [3,3,3], [3,3,3],[3,3,3]};
 % bool_too_many_components = false;
 if bool_too_many_components
@@ -38,7 +40,7 @@ for i_noise = 1:length(noiselevels)
     options.TolFun  = 1e-12;
     options.TolX    = 1e-12;
     U_init = btd_rnd(N,btd_model_order);
-    if i_rep==1
+    %if i_rep==1
         % Only run MLE BTD-NLS onces, as it takes 20-30 times as long as
         % BTD-minf and gives similar results.
         t0 = tic;
@@ -47,7 +49,7 @@ for i_noise = 1:length(noiselevels)
         
         frob_err_fit(i_noise,1,i_rep) = frobbtdres(X,Uhat_nls)/norm(X(:));
         frob_err_noiseless(i_noise,1,i_rep) = frobbtdres(Xnoiseless,Uhat_nls)/norm(Xnoiseless(:));
-    end
+    %end
     
     t0 = tic;
     [Uhat_minf,output] = btd_minf(X,U_init,options);
@@ -119,4 +121,4 @@ else
 end
 
 figure; plot(nanmean(time_elapsed,3)); legend(label_methods); ylabel('seconds'); 
-end
+%end
