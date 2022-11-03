@@ -1,6 +1,7 @@
 % Compare MLE BTD and Bayesian BTD
 function BTD_Paper_MLEvsBayes(bool_too_many_components)
 addpath('../thirdparty-matlab/tensorlab_2016-03-28/')
+
 bool_too_many_components=logical(bool_too_many_components);
 
 N = [40,40,40];
@@ -21,15 +22,16 @@ frob_err_fit = nan(length(noiselevels),3,n_repeats);
 frob_err_noiseless = nan(length(noiselevels),3,n_repeats);
 time_elapsed = nan(size(frob_err_noiseless));
 
-for i_rep = 1:n_repeats
+n_noiselevels = length(noiselevels);
+parfor i_rep = 1:n_repeats
 % f = @(t) repmat(ones(1,length(N))*t,12/t,1);
 % btd_model_order = mat2cell(f(3),4,[1,1,1]);
 U_true = btd_rnd(N,btd_model_order);
 Xnoiseless = btdgen(U_true);
+options=struct();
 
 
-
-for i_noise = 1:length(noiselevels)
+for i_noise = 1:n_noiselevels
     %X = noisy(Xnoiseless,noiselevels(i_noise));
     X = addTensorNoise(Xnoiseless,noiselevels(i_noise));
 %     X=X/max(X(:));
@@ -45,23 +47,23 @@ for i_noise = 1:length(noiselevels)
         % BTD-minf and gives similar results.
         t0 = tic;
         [Uhat_nls,output] = btd_nls(X,U_init,options);
-        time_elapsed(i_noise,1,i_rep) = toc(t0);
+        time_elapsed_nls = toc(t0);
         
-        frob_err_fit(i_noise,1,i_rep) = frobbtdres(X,Uhat_nls)/norm(X(:));
-        frob_err_noiseless(i_noise,1,i_rep) = frobbtdres(Xnoiseless,Uhat_nls)/norm(Xnoiseless(:));
+%         frob_err_fit(i_noise,1,i_rep) = frobbtdres(X,Uhat_nls)/norm(X(:));
+%         frob_err_noiseless(i_noise,1,i_rep) = frobbtdres(Xnoiseless,Uhat_nls)/norm(Xnoiseless(:));
     %end
     
     t0 = tic;
     [Uhat_minf,output] = btd_minf(X,U_init,options);
-    time_elapsed(i_noise,2,i_rep) = toc(t0);
-    frob_err_fit(i_noise,2,i_rep) = frobbtdres(X,Uhat_minf)/norm(X(:));
-    frob_err_noiseless(i_noise,2,i_rep) = frobbtdres(Xnoiseless,Uhat_minf)/norm(Xnoiseless(:));
+    time_elapsed_minf = toc(t0);
+%     frob_err_fit(i_noise,2,i_rep) = frobbtdres(X,Uhat_minf)/norm(X(:));
+%     frob_err_noiseless(i_noise,2,i_rep) = frobbtdres(Xnoiseless,Uhat_minf)/norm(Xnoiseless(:));
 
     %% Bayes BTD
     Dbtd = cat(1,btd_model_order{:});
     t0 = tic;
     [EG, EU, elbo] = pt_Tucker_BTD(X,Dbtd); 
-    time_elapsed(i_noise,3,i_rep) = toc(t0);
+    time_elapsed_bayes = toc(t0);
     
     % Convert to tensorlab format
     Uhat_vb = cell(1,size(Dbtd,1));
@@ -74,16 +76,17 @@ for i_noise = 1:length(noiselevels)
                                 1+bla(2,ib):bla(2,ib+1),...
                                 1+bla(3,ib):bla(3,ib+1));
     end
-    frob_err_fit(i_noise,3,i_rep) = frobbtdres(X,Uhat_vb)/norm(X(:));
-    frob_err_noiseless(i_noise,3,i_rep) = frobbtdres(Xnoiseless,Uhat_vb)/norm(Xnoiseless(:));
+%     frob_err_fit(i_noise,3,i_rep) = frobbtdres(X,Uhat_vb)/norm(X(:));
+%     frob_err_noiseless(i_noise,3,i_rep) = frobbtdres(Xnoiseless,Uhat_vb)/norm(Xnoiseless(:));
     
-    %%
-    
-    
-
+    %% Saving stuff here, so it is parfor-able
+    time_elapsed(i_noise,:,i_rep) = [time_elapsed_nls, time_elapsed_minf, time_elapsed_bayes];
+    frob_err_fit(i_noise,:,i_rep) = [frobbtdres(X,Uhat_nls)/norm(X(:)), frobbtdres(X,Uhat_minf)/norm(X(:)), frobbtdres(X,Uhat_vb)/norm(X(:))];
+    frob_err_noiseless(i_noise,:,i_rep) = [frobbtdres(Xnoiseless,Uhat_nls)/norm(Xnoiseless(:)), frobbtdres(Xnoiseless,Uhat_minf)/norm(Xnoiseless(:)),frobbtdres(Xnoiseless,Uhat_vb)/norm(Xnoiseless(:))];
 
 end
 end
+save(sprintf('BTDExperiments/MLEvsBayes-rep%i-bool%i',n_repeats,bool_too_many_components))
 %%
 %{'black', 'orange', 'sky blue', 'bluish green', 'Yellow', 'blue', 'vermilion', 'reddish purple'}
 list_safe_color = [0,0,0; 230, 159, 0; 86, 180, 233; 0, 158, 115; 240, 228, 66; 0, 114, 178; 213, 94, 0; 204, 121, 167]/255;
@@ -98,8 +101,8 @@ figure('Position',[50,50,400,300]);
 % subplot(1,5,4:5)
 % plot(noiselevels,frob_err_rel,'Linewidth',2)
 % plot(noiselevels,nanmean(frob_err_rel,3),'Linewidth',2)
-plot(noiselevels,nanmean(frob_err_noiseless(:,1,:),3),'Linewidth',2)
-for i_met = 2:3
+% plot(noiselevels,nanmean(frob_err_noiseless(:,1,:),3),'Linewidth',2)
+for i_met = 1:3
 %     boxplot(squeeze(frob_err_noiseless(:,i_met,:))',noiselevels,'Colors',[1,0,i_met==2])
     
     mu = mean(squeeze(frob_err_noiseless(:,i_met,:)),2);
@@ -115,9 +118,9 @@ xlabel('SNR dB')
 legend(label_methods,'Location','northeast','fontsize',12)
 %
 if bool_too_many_components
-    save_currentfig('BTDExperiments','synthetic-btd-mle-vs-bayes-too-many-D.png')
+    save_currentfig('BTDExperiments/','synthetic-btd-mle-vs-bayes-too-many-D.png')
 else
-    save_currentfig('BTDExperiments','synthetic-btd-mle-vs-bayes.png')
+    save_currentfig('BTDExperiments/','synthetic-btd-mle-vs-bayes.png')
 end
 
 figure; plot(nanmean(time_elapsed,3)); legend(label_methods); ylabel('seconds'); 
