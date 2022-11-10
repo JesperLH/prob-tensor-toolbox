@@ -74,9 +74,9 @@ update_core = true;
 update_factors = true;
 update_core_prior = true;
 update_noise_precision = true;
-fixed_lambda = 15;
-fixed_tau = 10; % Important to learn tau before switching away from MAP estimation of vMF
-fixed_orth_map_est = 12;
+fixed_lambda = 8;
+fixed_tau = 5; % Important to learn tau before switching away from MAP estimation of vMF
+fixed_orth_map_est = 6;
 
 %% Initialize random variables
 Nx=ndims(X);
@@ -403,7 +403,7 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
             fixed_tau = min(fixed_tau, c_fixed_tau);
         catch ME
             warning('Lowerbound diverged, trying again with different starting point.')
-            [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D); %, E_G_init)
+%             [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D); %, E_G_init)
             return
         end
         
