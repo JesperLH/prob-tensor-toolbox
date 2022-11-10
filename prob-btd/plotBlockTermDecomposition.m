@@ -28,6 +28,33 @@ i_core = [1:4,9:12,17:20];
 % i_factors = [3,2,4];
 i_factors = {[25:28,33:36,41:44], [5:8,13:16,21:24],[29:32,37:40,45:48]};
 
+%% Scale factors to have unit norm columns, then transfer scale to core array
+% - also make the element in each column with the largest absolute value
+% positive.
+f_reshape = @(s) reshape(s,prod(size(s,1:ndims(s)-1)),size(s,ndims(s)));
+factor_scale = cellfun(@(t) sum(f_reshape(t).^2,1), aest, 'UniformOutput', false);
+factor_sign = cellfun(@(t) (max(f_reshape(t)) == max(abs(f_reshape(t))))*2-1, aest, 'UniformOutput', false);
+factor_scale = cellfun(@(t,v) t.*v, factor_sign, factor_scale, 'UniformOutput', false); 
+
+
+
+gold = gest;
+core_size = size(gest);
+for i_m = 1:length(factor_scale)
+    gest = matricizing(gest,i_m);
+    gest = factor_scale{i_m}' .* gest;
+    gest = unmatricizing(gest,i_m, core_size);
+end
+
+if ndims(aest{3}) == 3
+    factor_scale{3} = permute(factor_scale{3},[1,3,2]);
+end
+
+aest = cellfun(@(t,sc) t./sc, aest,factor_scale,"UniformOutput",false);
+
+% TODO: It could be nice to sort each core by the scale of its hyper
+% diagonal.
+
 %% Plot the core array
 % subplot(nrow,ncol,i_core)
 % if ~strcmpi(plotstyles,'hinton')
@@ -105,11 +132,12 @@ for ifac = 1:length(aest)
     elseif ifac==3 % third mode
         if ~strcmpi(plotstyles{ifac},'image')
             set(gca,'View',[45,90])
+            set(gca,'Position',pos-[0,0.06,0,0])
         end
         %set(gca,'Position',[0.25,0.65,0.15,0.35]);
 %         set(gca,'Position',[0.45,0.15,0.4,0.4]);
 %         set(gca,'Position',[0.5,0.1,0.4,0.4]);
-        set(gca,'Position',pos-[0,0.06,0,0])
+        
     end
     
     if ~strcmpi(plotstyles{ifac},'topo') && ~strcmpi(plotstyles{ifac},'image')
