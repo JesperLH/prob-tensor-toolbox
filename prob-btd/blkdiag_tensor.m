@@ -8,9 +8,9 @@ if nargin < 2
 end
 
 %%
-for ic = 1:length(cores)
-    cores{ic}(:) = (1:numel(cores{ic}))*(-1)^ic;
-end
+% for ic = 1:length(cores)
+%     cores{ic}(:) = (1:numel(cores{ic}))*(-1)^ic;
+% end
 % i1 = [1,1,1,2,2,2]
 % i2 = [1,2,3,1,2,3]
 % i3 = [1,1,1,1,1,1]
