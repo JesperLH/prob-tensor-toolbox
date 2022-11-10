@@ -6,6 +6,6 @@ function save_currentfig(location, filename)
 
     %savefig(strcat(location,filename,'.fig'))
     print(fullfile(location,filename),'-dpng')
-    print(fullfile(location,filename),'-depsc')
+    %print(fullfile(location,filename),'-depsc')
 
 end
