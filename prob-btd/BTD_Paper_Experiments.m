@@ -127,10 +127,13 @@ for im = 1:length(model_range)
             end
             model_perf(1) = max(squeeze(performance_models(im,1,:))); % ELBO
             str_model{1} = 'ELBO';
+
             if ~isempty(Xnoiseless)
                 model_perf(2) = min(squeeze(performance_models(im,2,:))); % Reconstruction err
                 str_model{2} = '\epsilon';
             end
+
+            fprintf('im:%i elbo=%6.4f resi: %6.4f\n',im,model_perf)
             f  = figure('Position',[50,50,1600,1200]);        
             plotBlockTermDecomposition(estimate_model{im,1}, estimate_model{im,2},...
                 str_model,model_perf,plotting_style)
@@ -162,31 +165,38 @@ switch s
         sim_constr = [7,7,7]; %  orthogonal
         % Dbtd = [2,3,4;3,2,4; 3,3,1; 2,2,1];
         f = @(t) repmat(ones(1,length(N))*t,12/t,1);
+        f_tensorlab =@(t) repmat({ones(1,length(N))*t},1,12/t);
         Dbtd = f(3);
         Xcomb = 0;
         Ucomb = cell(length(N),size(Dbtd,1));
         Gcomb = cell(size(Dbtd,1),1);
+        gu =btd_rnd(N, f_tensorlab(3));
         for ib = size(Dbtd,1):-1:1
-            [X, U, G] = generateTuckerData(N,Dbtd(ib,:),sim_constr); 
-            Xcomb = Xcomb +X;
-            Ucomb(:,ib) = U;
-            Gcomb{ib} = G;
+            Ucomb(:,ib) = gu{ib}(1:end-1);
+            Gcomb(ib) = gu{ib}(end);
         end
-        % Do it differently, so U is orthogonal
-        % XX = nmodel({cat(2,Ucomb{1,:}),cat(2,Ucomb{2,:}),cat(2,Ucomb{3,:})}, blkdiag_tensor(Gcomb,Dbtd));
-        U = {orth(cat(2,Ucomb{1,:})),orth(cat(2,Ucomb{2,:})),orth(cat(2,Ucomb{3,:}))};
-        Xnoiseless = nmodel(U, blkdiag_tensor(Gcomb,Dbtd));
-
-        bla = cumsum([0,0,0;Dbtd])';
-        for in = 1:size(Dbtd,2)
-            for ib = 1:size(Dbtd,1)
-%                 1+bla(in,ib):bla(in+1,ib)
-                Ucomb{in,ib} = U{in}(:,1+bla(in,ib):bla(in,ib+1));
-            end
-        end
+        Xnoiseless=btdgen(gu);
+%         for ib = size(Dbtd,1):-1:1
+%             [X, U, G] = generateTuckerData(N,Dbtd(ib,:),sim_constr); 
+%             Xcomb = Xcomb +X;
+%             Ucomb(:,ib) = U;
+%             Gcomb{ib} = G;
+%         end
+%         % Do it differently, so U is orthogonal
+%         % XX = nmodel({cat(2,Ucomb{1,:}),cat(2,Ucomb{2,:}),cat(2,Ucomb{3,:})}, blkdiag_tensor(Gcomb,Dbtd));
+%         U = {orth(cat(2,Ucomb{1,:})),orth(cat(2,Ucomb{2,:})),orth(cat(2,Ucomb{3,:}))};
+%         Xnoiseless = nmodel(U, blkdiag_tensor(Gcomb,Dbtd));
+% 
+%         bla = cumsum([0,0,0;Dbtd])';
+%         for in = 1:size(Dbtd,2)
+%             for ib = 1:size(Dbtd,1)
+% %                 1+bla(in,ib):bla(in+1,ib)
+%                 Ucomb{in,ib} = U{in}(:,1+bla(in,ib):bla(in,ib+1));
+%             end
+%         end
         
         % noise? also noise full or noise blockwise
-        X = addTensorNoise(Xnoiseless,20);
+        X = addTensorNoise(Xnoiseless,50);
 %         s_analysis = 'synthetic'
         G_true = Gcomb;
         U_true = Ucomb;
