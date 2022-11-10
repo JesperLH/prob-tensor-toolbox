@@ -379,7 +379,7 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
                         - sum(gammaln(1/2*(I-(1:Dstielf) +1) ) );
         end
     end
-    stats.ELBO = stats.ELBO + sum(log_volume_stiefel(:));
+    stats.ELBO = stats.ELBO + sum(-log_volume_stiefel(:));
 
     
     ELBO(iter)=stats.ELBO;
