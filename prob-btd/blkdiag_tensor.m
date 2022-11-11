@@ -20,7 +20,8 @@ G = zeros(sum(core_sizes,1));
 
 for ic = 1:length(cores)
     idx = cell(n_modes,1);
-    [ij] = find(cores{ic});
+    %[ij] = find(cores{ic});
+    ij = 1:numel(cores{ic});
     [idx{:}] = ind2sub(size(cores{ic}), ij);
     for im = 1:n_modes
         if ic>1
@@ -29,7 +30,7 @@ for ic = 1:length(cores)
     end
 
     idx_lin = sub2ind(sum(core_sizes,1), idx{:});
-    assert(length(unique(idx_lin)) == numel(cores{ic}), 'Core %i',ic);
+%     assert(length(unique(idx_lin)) == numel(cores{ic}), 'Core %i',ic);
     G(idx_lin) = cores{ic}(:);
 
 end
