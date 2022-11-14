@@ -1,4 +1,4 @@
-function plotBlockTermDecomposition(gest,aest,str_perform, val_perform, plotstyles)
+function plotBlockTermDecomposition(gest,aest,str_perform, val_perform, plotstyles, coresizes)
 %% PLOTBLOCKTERMDECOMPOSITION plots the core array and factors from a 3-way block term decomposition.
 %
 % Input:
@@ -33,6 +33,9 @@ i_factors = {[25:28,33:36,41:44], [5:8,13:16,21:24],[29:32,37:40,45:48]};
 % positive.
 f_reshape = @(s) reshape(s,prod(size(s,1:ndims(s)-1)),size(s,ndims(s)));
 factor_scale = cellfun(@(t) sum(f_reshape(t).^2,1), aest, 'UniformOutput', false);
+for ifac = 1:length(factor_scale)
+    factor_scale{ifac}(factor_scale{ifac}<1e-8) = 1;
+end
 factor_sign = cellfun(@(t) (max(f_reshape(t)) == max(abs(f_reshape(t))))*2-1, aest, 'UniformOutput', false);
 factor_scale = cellfun(@(t,v) t.*v, factor_sign, factor_scale, 'UniformOutput', false); 
 
@@ -79,6 +82,9 @@ for ifac = 1:length(aest)
     
     if strcmpi(plotstyles{ifac},'plot')
         plot(aest{ifac},'Linewidth',2);
+        vals = get(gca,'XLim');
+        hold on;
+        plot(vals,[0,0],'--k','LineWidth',2)
         axis off;
     elseif strcmpi(plotstyles{ifac},'hinton')
         hintonw(aest{ifac}'); %axis off; 
@@ -88,7 +94,17 @@ for ifac = 1:length(aest)
         set(gca,'ydir','normal');
         set(gca,'xdir','normal');
         [S,R] = size(aest{ifac}');
-        plot([0 R R 0 0]+0.5,[0 0 S S 0]+0.5,'k');
+        plot([0 R R 0 0]+0.5,[0 0 S S 0]+0.5,'k','LineWidth',2);
+
+        if ~isempty(coresizes)
+        % Separate the cores
+            dsum = cumsum([0,0,0; coresizes],1);
+            vals = get(gca,'XLim');
+            for ib = 1:size(coresizes,1)-1
+                plot(vals, [dsum(ib+1,ifac),dsum(ib+1,ifac)]+0.5,'--k','LineWidth',2);
+            end
+        end
+
         axis off;
     elseif strcmpi(plotstyles{ifac},'topo')
         load('./prob-btd/btd_eeg_chanlocs.mat','eeg_chanlocs'); % Note, this is specific to one dataset!!

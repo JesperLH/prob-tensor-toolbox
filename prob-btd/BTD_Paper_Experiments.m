@@ -11,8 +11,11 @@ if nargin < 2
 end
 if ~isfolder(save_loc), mkdir(save_loc); end
 
-
-n_repeats = 10;
+if contains(s_analysis,'synthetic')
+    n_repeats = 100;
+else
+    n_repeats = 10;
+end
 
 %%
 [Xcomb, Gtrue, Utrue, Xnoiseless] = get_btd_data(s_analysis);
@@ -66,7 +69,7 @@ for im = 1:length(model_range)
             try
                 [EG, EU, elbo] = pt_Tucker_BTD(Xcomb,model_range{im}); 
                 performance_models(im,1,irep) = elbo(end);
-                if strcmpi(s_analysis,'synthetic')
+                if contains(s_analysis,'synthetic','IgnoreCase',true)
                     Xresidual = Xnoiseless-nmodel(EU, EG);
                     performance_models(im,2,irep) = sqrt(mean(Xresidual(:).^2));
                 end
@@ -78,6 +81,7 @@ for im = 1:length(model_range)
 %         end
             if elbo(end) > best_elbo
                 estimate_model(im,:) = {EG, EU};
+                best_elbo = elbo(end);
             end
     end
 
@@ -113,10 +117,24 @@ save(fullfile(save_loc,sprintf('estimated-models-%s',s_analysis)),...
 
 
 %% Show best decomposition
+% for ijk = 1:3
+%     save_loc = 'BTDExperiments/';
+%     model_perf=[];
+%     str_model ={};
+%     if ijk==1
+%         load('./BTDExperiments\estimated-models-synthetic.mat')
+%     elseif ijk==2
+%         load('./BTDExperiments\estimated-models-flowinj.mat')
+%     elseif ijk==3
+%         load('./BTDExperiments\estimated-models-eeg.mat')
+%     end
+stielf_vol_models = zeros(length(model_range),1);
+elbo_models = zeros(length(model_range),1);
+fprintf('--- %s ---\n',s_analysis)
 for im = 1:length(model_range)
 
     if ~isempty(estimate_model{im,1})
-            if strcmpi(s_analysis,'synthetic')
+            if contains(s_analysis,'synthetic','IgnoreCase',true)
                 plotting_style = 'hinton';
             elseif strcmpi(s_analysis,'flowinj')
                 plotting_style = {'hinton','plot','plot'};
@@ -125,23 +143,40 @@ for im = 1:length(model_range)
             else
                 plotting_style = 'plot';
             end
-            model_perf(1) = max(squeeze(performance_models(im,1,:))); % ELBO
+            [model_perf(1),imax] = max(squeeze(performance_models(im,1,:))); % ELBO
             str_model{1} = 'ELBO';
-
+            D=model_range{im};
+            N=cellfun(@(t) numel(t)/12, estimate_model{im,2});
+            log_volume_stiefel = zeros(size(D));
+            for d = 1:size(D,1) % each core
+                for n = 1:length(N)
+                    I=N(n); Dstielf=D(d,n);
+                            %volume = (2^D * pi^(I*D/2)) / ( pi^(D*(D-1)/4) * (prod(gamma(1/2*(I-(1:D) +1)))) ) ;
+                    log_volume_stiefel(d,n) = Dstielf*log(2) + I*Dstielf/2*log(pi) - Dstielf*(Dstielf-1)/4*log(pi) ...
+                                - sum(gammaln(1/2*(I-(1:Dstielf) +1) ) );
+                end
+            end
+            stielf_vol_models(im) = sum(log_volume_stiefel(:));
+%             model_perf(1) = model_perf(1)+sum(log_volume_stiefel(:));
+            elbo_models(im) = model_perf(1);
             if ~isempty(Xnoiseless)
-                model_perf(2) = min(squeeze(performance_models(im,2,:))); % Reconstruction err
+                model_perf(2) = squeeze(performance_models(im,2,imax)); % Reconstruction err
                 str_model{2} = '\epsilon';
             end
-
-            fprintf('im:%i elbo=%6.4f resi: %6.4f\n',im,model_perf)
+            
+           if contains(s_analysis,'synthetic','IgnoreCase',true)
+            fprintf('BTD(%i,%i): elbo=%6.4f resi: %6.4f\n',size(model_range{im},1),model_range{im}(1),model_perf)
+           else
+               fprintf('BTD(%i,%i): elbo=%6.4f\n',size(model_range{im},1),model_range{im}(1),model_perf)
+           end
             f  = figure('Position',[50,50,1600,1200]);        
-            plotBlockTermDecomposition(estimate_model{im,1}, estimate_model{im,2},...
-                str_model,model_perf,plotting_style)
+            plotBlockTermDecomposition(estimate_model{im,1}(:,end:-1:1,:), estimate_model{im,2},...
+                str_model,model_perf,plotting_style,model_range{im})
             save_currentfig(save_loc,sprintf('%s-%icores-%isize',s_analysis, size(model_range{im},1),model_range{im}(1)))
             close(f)
     end
 end
-
+% end
 %% Some sort of prediction, maybe only for EEG
 % here an example for amino flour ... which is a bad example
 % Res{2,2}{1}*(Res{2,2}{1}\y)
@@ -157,35 +192,46 @@ function [X, G_true, U_true, Xnoiseless] = get_btd_data(s)
 G_true = [];
 U_true = [];
 Xnoiseless = [];
-s = lower(s);
-switch s
-    case 'synthetic'
+
+if contains(s,'synthetic','IgnoreCase',true)
         %% Simulated data
         N = [40,40,40];
         sim_constr = [7,7,7]; %  orthogonal
         % Dbtd = [2,3,4;3,2,4; 3,3,1; 2,2,1];
+        s_model = {'(12,1)','(6,2)','(4,3)','(3,4)','(2,6)', '(1,12)'};
+        si_model = [1,2,3,4,6,12];
         f = @(t) repmat(ones(1,length(N))*t,12/t,1);
         f_tensorlab =@(t) repmat({ones(1,length(N))*t},1,12/t);
-        Dbtd = f(3);
+        i_model = find(cellfun(@(t) contains(s,t), s_model));
+        if isempty(i_model)
+            Dbtd = f(si_model(3));
+        else
+            Dbtd = f(si_model(i_model));
+        end
         Xcomb = 0;
         Ucomb = cell(length(N),size(Dbtd,1));
         Gcomb = cell(size(Dbtd,1),1);
-        gu =btd_rnd(N, f_tensorlab(3));
-        for ib = size(Dbtd,1):-1:1
-            Ucomb(:,ib) = gu{ib}(1:end-1);
-            Gcomb(ib) = gu{ib}(end);
-        end
-        Xnoiseless=btdgen(gu);
+%         gu =btd_rnd(N, f_tensorlab(3));
 %         for ib = size(Dbtd,1):-1:1
-%             [X, U, G] = generateTuckerData(N,Dbtd(ib,:),sim_constr); 
-%             Xcomb = Xcomb +X;
-%             Ucomb(:,ib) = U;
-%             Gcomb{ib} = G;
+%             Ucomb(:,ib) = gu{ib}(1:end-1);
+%             Gcomb(ib) = gu{ib}(end);
 %         end
+%         Xnoiseless=btdgen(gu);
+        for ib = size(Dbtd,1):-1:1
+            [~, U, G] = generateTuckerData(N,Dbtd(ib,:),sim_constr); 
+            Ucomb(:,ib) = U;
+            Gnew = randn(size(G));
+            for id = 1:size(Gnew)
+                Gnew(id,id,id) = 1;
+            end
+            
+            Gcomb{ib} = Gnew;
+        end
 %         % Do it differently, so U is orthogonal
 %         % XX = nmodel({cat(2,Ucomb{1,:}),cat(2,Ucomb{2,:}),cat(2,Ucomb{3,:})}, blkdiag_tensor(Gcomb,Dbtd));
 %         U = {orth(cat(2,Ucomb{1,:})),orth(cat(2,Ucomb{2,:})),orth(cat(2,Ucomb{3,:}))};
-%         Xnoiseless = nmodel(U, blkdiag_tensor(Gcomb,Dbtd));
+        U = {cat(2,Ucomb{1,:}),cat(2,Ucomb{2,:}),cat(2,Ucomb{3,:})};
+        Xnoiseless = nmodel(U, blkdiag_tensor(Gcomb,Dbtd));
 % 
 %         bla = cumsum([0,0,0;Dbtd])';
 %         for in = 1:size(Dbtd,2)
@@ -196,7 +242,7 @@ switch s
 %         end
         
         % noise? also noise full or noise blockwise
-        X = addTensorNoise(Xnoiseless,50);
+        X = addTensorNoise(Xnoiseless,10);
 %         s_analysis = 'synthetic'
         G_true = Gcomb;
         U_true = Ucomb;
@@ -204,12 +250,12 @@ switch s
         % indicator = @(t,k) [zeros(1,floor(length(t)/6)*(k-1)), ones(1,floor(length(t)/6)), zeros(1,length(t)-floor(length(t)/6)*k)]
         % T = sin(x.*(1:12)')'; T=T./sqrt(sum(T.^2,1)); T'*T;
 
-    case 'flowinj'
+elseif contains(s,'flowinj','IgnoreCase',true)
         %% Flow
         load('../Data/life_ku/Flow-Injection/fia.mat','X','DimX')
         X = reshape(X,DimX);
     
-    case 'eeg'
+elseif contains(s,'eeg','IgnoreCase',true)
         %% EEG
         s_analysis = 'eeg'
         filenames = dir('../Data/Tutorialdataset2/*.mat'); filenames = {filenames.name};
