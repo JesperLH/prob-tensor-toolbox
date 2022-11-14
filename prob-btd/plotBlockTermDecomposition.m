@@ -61,7 +61,7 @@ aest = cellfun(@(t,sc) t./sc, aest,factor_scale,"UniformOutput",false);
 %% Plot the core array
 % subplot(nrow,ncol,i_core)
 % if ~strcmpi(plotstyles,'hinton')
-    subplot(nrow,ncol,i_core)
+    ax_core = subplot(nrow,ncol,i_core);
     plotTCorefast(gest);
     pos_core = get(gca,'Position');
 %     set(gca,'Position',[0.05,0.32,0.33+0.22,0.22+0.22])
@@ -214,7 +214,9 @@ end
 % end
 1+1;
 %%
-
+% subplot(nrow,ncol,i_core); % set colormap to gray scale
+% set(gca,??)
+colormap(ax_core,"gray")
 %%
 % if strcmpi(plotstyles,'hinton')
 %     subplot(nrow,ncol,i_core)
