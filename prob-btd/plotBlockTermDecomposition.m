@@ -39,7 +39,7 @@ end
 factor_sign = cellfun(@(t) (max(f_reshape(t)) == max(abs(f_reshape(t))))*2-1, aest, 'UniformOutput', false);
 factor_scale = cellfun(@(t,v) t.*v, factor_sign, factor_scale, 'UniformOutput', false); 
 
-
+factor_scale = factor_sign; % Don't scale , as this loose the uncertainty estimated by the vMF distribution
 
 gold = gest;
 core_size = size(gest);
