@@ -74,6 +74,9 @@ update_core = true;
 update_factors = true;
 update_core_prior = true;
 update_noise_precision = true;
+core_prior_type = 'scale';
+core_prior_type = 'sparse';
+
 fixed_lambda = 8;
 fixed_tau = 5; % Important to learn tau before switching away from MAP estimation of vMF
 fixed_orth_map_est = 6;
@@ -343,18 +346,35 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     
     % Update Lambda on the core.
     if update_core_prior && iter > fixed_lambda
-        est_lambda_alpha= alpha_lambda + 1/2;
-        est_lambda_beta = beta_lambda + E_G_sq/2;
+        if strcmpi(core_prior_type,'scale')
+            est_lambda_alpha= alpha_lambda + numel(E_G_sq)/2;
+            est_lambda_beta = beta_lambda + sum(E_G_sq(:))/2;
+            
+        elseif strcmpi(core_prior_type,'sparse')
+            est_lambda_alpha= alpha_lambda + 1/2;
+            est_lambda_beta = beta_lambda + E_G_sq/2;
+        end
     else
         est_lambda_alpha = alpha_lambda;
-        est_lambda_beta = beta_lambda*ones(size(E_G));
+        if strcmpi(core_prior_type,'scale')
+           est_lambda_beta = beta_lambda;
+        elseif strcmpi(core_prior_type,'sparse')
+            est_lambda_beta = beta_lambda*ones(size(E_G));
+        end
+        
     end
     E_lambda_core=est_lambda_alpha./est_lambda_beta;
     E_log_lambda_core=psi(est_lambda_alpha)-log(est_lambda_beta);
-    E_lambda_core = E_lambda_core .*M;
+
+    E_lambda_core = E_lambda_core .* M;
+    if strcmpi(core_prior_type,'scale')
+           E_log_lambda_core = E_log_lambda_core*M;
+    elseif strcmpi(core_prior_type,'sparse')
+        est_lambda_beta = est_lambda_beta(M(:));
+    end
     E_log_lambda_core = E_log_lambda_core(M(:));
     [H_lambda_core, prior_lambda_core]=entropy_gamma(est_lambda_alpha, ...
-        est_lambda_beta(M(:)), alpha_lambda, beta_lambda);
+        est_lambda_beta, alpha_lambda, beta_lambda);
     
     % Calculate lowerbound
     % likelihood
