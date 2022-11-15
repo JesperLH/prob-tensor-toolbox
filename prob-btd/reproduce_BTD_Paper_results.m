@@ -5,13 +5,17 @@
 BTD_Paper_MLEvsBayes(false); % Right number of components
 BTD_Paper_MLEvsBayes(true); % Double the number of components.
 
+%% 2) Real data
+BTD_Paper_Experiments('flowinj');
+BTD_Paper_Experiments('eeg');
+
 %% 2) Synthetic Bayes BTD
 model_CD={'(12,1)','(6,2)','(4,3)','(3,4)','(2,6)', '(1,12)'};
 for s_model = model_CD
     BTD_Paper_Experiments(sprintf('synthetic-BTD%s',s_model{1}));
 end
 
-%% Create table
+% Create table
 res_elbo = zeros(length(model_CD));
 res_residual = zeros(length(model_CD));
 
@@ -55,8 +59,6 @@ for irow = 0:length(model_CD)*2
 
 end
 disp(s)
-1+1;
 
-%% 2) Real data
-BTD_Paper_Experiments('flowinj');
-BTD_Paper_Experiments('eeg');
+
+
