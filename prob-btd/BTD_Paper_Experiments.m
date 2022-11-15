@@ -122,11 +122,13 @@ save(fullfile(save_loc,sprintf('estimated-models-%s',s_analysis)),...
 %     model_perf=[];
 %     str_model ={};
 %     if ijk==1
-%         load('./BTDExperiments\estimated-models-synthetic.mat')
+%         load('./BTDExperiments\estimated-models-synthetic-BTD(4,3).mat')
 %     elseif ijk==2
 %         load('./BTDExperiments\estimated-models-flowinj.mat')
 %     elseif ijk==3
 %         load('./BTDExperiments\estimated-models-eeg.mat')
+% addpath('../thirdparty-matlab/eeglab2021.1/');
+%         evalc('eeglab;'); close all;
 %     end
 stielf_vol_models = zeros(length(model_range),1);
 elbo_models = zeros(length(model_range),1);
@@ -177,13 +179,6 @@ for im = 1:length(model_range)
     end
 end
 % end
-%% Some sort of prediction, maybe only for EEG
-% here an example for amino flour ... which is a bad example
-% Res{2,2}{1}*(Res{2,2}{1}\y)
-% y
-% corr(y,Res{2,2}{1}*(Res{2,2}{1}\y))
-
-% keyboard
 
 end
 
