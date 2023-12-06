@@ -1,5 +1,5 @@
-function [E_G, E_U, ELBO] = VB_Tucker_BTD(X, D) %, E_G_init)
-%% VB_TUCKER_BTD fits a Tucker decomposition model to X. The number of
+function [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D, core_prior_type) %, E_G_init)
+%% PT_TUCKER_BTD fits a Tucker decomposition model to X. The number of
 % components in each mode are determined by D. If a matrix is input, then
 % a block-diagonal structure is assumed (rows are blocks and columns are
 % number of modes). The factors are orthogonal (matrix von Mises-Fisher)
@@ -9,7 +9,7 @@ function [E_G, E_U, ELBO] = VB_Tucker_BTD(X, D) %, E_G_init)
 %   X:      The N-dimensional data array
 %   D:      The number of components in each mode (columns) for each block
 %           (rows). NB. A row vector is Tucker decomposition.
-%
+%   core_prior_type:    'scale' or 'sparse' (default) prior on the core arrays 
 %
 % OUTPUT:
 %   E_G:    Expected value of the core array
@@ -30,9 +30,21 @@ function [E_G, E_U, ELBO] = VB_Tucker_BTD(X, D) %, E_G_init)
 %  Core: \prod_{lmn} N(\mu_{lmn},\sigma_{lmn})
 %
 
+[i,j] = find(size(X)<D);
+if ~isempty(i)
+    s = sprintf('Core size larger than number of obervations:\n');
+    for ij = 1:length(i)
+        s = sprintf('%s\t For core %i in mode %i - %i > %i\n',s,i(ij),j(ij), D(i(ij),j(ij)), size(X,j(ij)));
+    end
+    
+    error(['%s Due to orthogonality, the latent dimension cannot be ' ...
+        'larger than the number of observations in the corresponding mode.'],s)
+end
+
+
 % Create a low-rank representation for zero and non-zero elements in the
 % core array.
-if size(D,1) > 1
+if size(D,1) > 1 % when there are >1 core
     Dtot=cumsum([zeros(1,size(D,2));D],1);
     for i_mode = 1:size(D,2)
         I_M{i_mode}=false(Dtot(end,i_mode),size(D,1));
@@ -41,7 +53,7 @@ if size(D,1) > 1
         end
     end
     M = logical(nmodel(I_M));
-else
+else % if there is only one core
     M = true(D);
     Dtot=[zeros(size(D));D];
     for j = ndims(X):-1:1
@@ -52,6 +64,8 @@ end
 % Hyper parameters
 alpha_tau= 1e-3; beta_tau = 1e-3;
 alpha_lambda = 1e-3; beta_lambda = 1e-3;
+% alpha_tau= 1; beta_tau = 1;
+% alpha_lambda = 1; beta_lambda = 1;
 max_iter = 100;
 conv_crit=1e-6;
 
@@ -60,8 +74,15 @@ update_core = true;
 update_factors = true;
 update_core_prior = true;
 update_noise_precision = true;
-fixed_lambda = 3;
-fixed_tau = 5;
+
+if nargin < 3 || isempty(core_prior_type)
+    %core_prior_type = 'scale';
+    core_prior_type = 'sparse';
+end
+
+fixed_lambda = 8;
+fixed_tau = 5; % Important to learn tau before switching away from MAP estimation of vMF
+fixed_orth_map_est = 6;
 
 %% Initialize random variables
 Nx=ndims(X);
@@ -76,6 +97,7 @@ for i=1:Nx
     end
 end
 H_U = 0;
+
 
 % Initialize Core array
 E_G=zeros(sum(D,1));
@@ -126,7 +148,7 @@ tic;
 disp([' '])
 disp(['VB Tucker optimization'])
 % disp(['A ' num2str(D) ' component model will be fitted'])
-dheader = sprintf('%12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s','Iteration','ELBO.','dELBO','E[Var. Expl]','Time','E_tau', 'RMS', 'SSE', '||CORE||','|Core_prior|');
+dheader = sprintf('%12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s','Iteration','ELBO.','dELBO','E[Var. Expl]','Time','E_tau', 'RMS', 'SSE', '||CORE||','|Core_prior|','||U1||','||U2||','||U3||');
 dline = sprintf('-------------+--------------+--------------+--------------+--------------+');
 
 X_recon = nmodel(E_U,E_G);
@@ -151,39 +173,50 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     
     % Estimate mode loadings
     if update_factors
-        for times=1:1%(10+1*(iter==1))
+        for times=1:1 %(10+1*(iter==1))
             H_U=zeros(1,Nx);
             for j=1:size(D,1) % randperm(size(D,1))%
                 
                 % Remove effect of the j'th block and calculate
                 % residual error
                 E_Ut=E_U;
-                E_Ut{j}(:,Dtot(j, 1)+1:Dtot(j+1, 1)) = 0;
-                X_residual = X-nmodel(E_Ut,E_G);
+%                 E_Ut{1}(:,Dtot(j, 1)+1:Dtot(j+1, 1)) = 0; 
+                % NB technically
+                for i = 1:Nx, E_Ut{i}(:,Dtot(j, i)+1:Dtot(j+1, i))=0; end % but just zeroing one will surfice
+
+                X_residual = X-nmodel(E_Ut,E_G); %  y_t
                 
                 % Update each mode of the j'th block
                 for i= 1:Nx% randperm(Nx)%
+%                     fprintf('Updating core j=%i in mode i=%i with size (%i x %i)\n', j, i, N(i), D(j,i))
                     NN=1:Nx;
                     NN(i)=[];
                     XUnoti=X_residual;
+%                     XUnoti2=X;
                     E_G_rel=E_G;
-                    for jj=NN
-                        XUnoti=tmult(XUnoti,E_U{jj}(:,Dtot(j, jj)+1:Dtot(j+1, jj))',jj);
-                        E_G_rel_size=size(E_G_rel);
+                    for jj=NN 
+                        XUnoti=tmult(XUnoti,E_U{jj}(:,Dtot(j, jj)+1:Dtot(j+1, jj))',jj); % core times U_t^m
+                        E_G_rel_size=size(E_G_rel);  % extract subcore
                         E_G_rel=matricizing(E_G_rel,jj);
                         E_G_rel=E_G_rel(I_M{jj}(:,j),:);
                         E_G_rel_size(jj)=sum(I_M{jj}(:,j));
                         E_G_rel=unmatricizing(E_G_rel,jj,E_G_rel_size);
                     end
+                    %%
                     
                     XUnoti_i=matricizing(XUnoti,i);
                     E_G_rel=matricizing(E_G_rel,i);
                     F=(XUnoti_i*E_G_rel(I_M{i}(:,j),:)')*E_tau;
                     [UU,SS,VV]=svd(F, 'econ');%0);
+                    if size(F,2)>size(UU,2)
+                        disp('Not linearly independent')
+                        %keyboard
+                        error('Core %i for mode %i did not have %i linearly independent factors - if this error presists, try a smaller core.',j,i,size(F,2))
+                    end
                     [f,V,lF_j]=hyperg(N(i),diag(SS),3);
                     
                     assert(~isinf(lF_j))
-                    if iter<5
+                    if iter<=fixed_orth_map_est
                         EU=UU*VV'; % Use MAP estimate for the first few iterations
                     else
                         EU=UU*diag(f)*VV'; % Expectation of U
@@ -231,10 +264,12 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
         end
         E_Rec_sq=E_Rec_sq-sum(E_G_rel(:).^2);
     end
+
+    %%
     
     H_G = 0.5*sum(log(sigma_sq_core(M(:)))) + 0.5*sum(prod(D,2),1)*(1+log(2*pi));
     E_SSE=SST+sum(E_G_sq(:))+E_Rec_sq-2*X(:)'*E_Rec(:);
-    
+
     % Update noise precision (tau)
     if update_noise_precision && iter > fixed_tau
         est_tau_alpha= alpha_tau+prod(N)/2;
@@ -250,18 +285,35 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     
     % Update Lambda on the core.
     if update_core_prior && iter > fixed_lambda
-        est_lambda_alpha= alpha_lambda + 1/2;
-        est_lambda_beta = beta_lambda + E_G_sq/2;
+        if strcmpi(core_prior_type,'scale')
+            est_lambda_alpha= alpha_lambda + numel(E_G_sq)/2;
+            est_lambda_beta = beta_lambda + sum(E_G_sq(:))/2;
+            
+        elseif strcmpi(core_prior_type,'sparse')
+            est_lambda_alpha= alpha_lambda + 1/2;
+            est_lambda_beta = beta_lambda + E_G_sq/2;
+        end
     else
         est_lambda_alpha = alpha_lambda;
-        est_lambda_beta = beta_lambda*ones(size(E_G));
+        if strcmpi(core_prior_type,'scale')
+           est_lambda_beta = beta_lambda;
+        elseif strcmpi(core_prior_type,'sparse')
+            est_lambda_beta = beta_lambda*ones(size(E_G));
+        end
+        
     end
     E_lambda_core=est_lambda_alpha./est_lambda_beta;
     E_log_lambda_core=psi(est_lambda_alpha)-log(est_lambda_beta);
-    E_lambda_core = E_lambda_core .*M;
+
+    E_lambda_core = E_lambda_core .* M;
+    if strcmpi(core_prior_type,'scale')
+           E_log_lambda_core = E_log_lambda_core*M;
+    elseif strcmpi(core_prior_type,'sparse')
+        est_lambda_beta = est_lambda_beta(M(:));
+    end
     E_log_lambda_core = E_log_lambda_core(M(:));
     [H_lambda_core, prior_lambda_core]=entropy_gamma(est_lambda_alpha, ...
-        est_lambda_beta(M(:)), alpha_lambda, beta_lambda);
+        est_lambda_beta, alpha_lambda, beta_lambda);
     
     % Calculate lowerbound
     % likelihood
@@ -276,6 +328,18 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
         +H_G;
     % prior and entropy on factors
     stats.ELBO=stats.ELBO + 0 + sum(H_U); % VMF prior is log(1)=0 ignoring same constants in prior and entropy
+
+    log_volume_stiefel = zeros(size(D));
+    for d = 1:size(D,1) % each core
+        for n = 1:Nx
+            I=N(n); Dstielf=D(d,n);
+                    %volume = (2^D * pi^(I*D/2)) / ( pi^(D*(D-1)/4) * (prod(gamma(1/2*(I-(1:D) +1)))) ) ;
+            log_volume_stiefel(d,n) = Dstielf*log(2) + I*Dstielf/2*log(pi) - Dstielf*(Dstielf-1)/4*log(pi) ...
+                        - sum(gammaln(1/2*(I-(1:Dstielf) +1) ) );
+        end
+    end
+    stats.ELBO = stats.ELBO + sum(-log_volume_stiefel(:));
+
     
     ELBO(iter)=stats.ELBO;
     dELBO_relative=(ELBO(iter)-ELBO_old)/abs(ELBO(iter));
@@ -284,17 +348,23 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     if rem(iter,1)==0
         X_recon = nmodel(E_U,E_G);
         sse_recon = norm(X(:)-X_recon(:),2)^2/norm(X(:),2)^2;
-        fprintf('%12i | %12.4e | %12.4e | %8.6f | %12.4f | %12.4e | %12.4e | %12.4e | %12.4e | %12.4e\n',...
-            iter, ELBO(iter),dELBO_relative,(SST-E_SSE)/SST,toc, E_tau, rms(X(:)-X_recon(:)), sse_recon, norm(E_G(:),2)^2, norm(E_lambda_core(:),2)^2);
+        fprintf('%12i | %12.4e | %12.4e | %12.4f | %12.4f | %12.4e | %12.4e | %12.4e | %12.4e | %12.4e | %12.4e | %12.4e | %12.4e\n',...
+            iter, ELBO(iter),dELBO_relative,(SST-E_SSE)/SST,toc, E_tau, rms(X(:)-X_recon(:)), sse_recon, norm(E_G(:),2)^2, norm(E_lambda_core(:),2)^2, norm(E_U{1}(:))^2, norm(E_U{2}(:))^2, norm(E_U{3}(:))^2);
         tic;
     end
-    if iter > 6
-        [~, c_fixed_lambda, c_fixed_tau] = isElboDiverging(...
-            iter, dELBO_relative, conv_crit,...
-            {'hyperprior (lambda)', update_core_prior, fixed_lambda},...
-            {'noise (tau)', update_noise_precision, fixed_tau});
-        fixed_lambda = min(fixed_lambda, c_fixed_lambda);
-        fixed_tau = min(fixed_tau, c_fixed_tau);
+    if iter > fixed_orth_map_est
+        try
+            [~, c_fixed_lambda, c_fixed_tau] = isElboDiverging(...
+                iter, dELBO_relative, conv_crit,...
+                {'hyperprior (lambda)', update_core_prior, fixed_lambda},...
+                {'noise (tau)', update_noise_precision, fixed_tau});
+            fixed_lambda = min(fixed_lambda, c_fixed_lambda);
+            fixed_tau = min(fixed_tau, c_fixed_tau);
+        catch ME
+            warning('Lowerbound diverged, try again with different starting point.')
+%             [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D); %, E_G_init)
+            return
+        end
         
     end
     
@@ -302,7 +372,8 @@ end
 % Display final iteration
 fprintf('%12.0f | %12.4f | %6.5e | %12.4e \n',iter, ELBO(iter),dELBO_relative/abs(ELBO(iter)),toc);
 
-assert(sum(abs(E_G(:)))~=0, 'The core array was entirely off, this should not happen. What is the scale of your data?')
+% Note, this can happen, if the SNR is so low, that no model can be found.
+% assert(sum(abs(E_G(:)))~=0, 'The core array was entirely off, this should not happen. What is the scale of your data?')
 
 end
 %------------------------------------------------------------------

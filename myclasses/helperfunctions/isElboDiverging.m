@@ -21,10 +21,11 @@ end
             varargout{i} = current_iteration;
             
             warning(sw)
-            break
+            return
         end
 
     end
+    
 end
 
 if isDiverging && abs(delta_cost) < conv_crit

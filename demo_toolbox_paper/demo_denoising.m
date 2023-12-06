@@ -63,7 +63,7 @@ X_recon_tt = permute(constructTensorTrain(G_best),rev_mode_order);
 %         for d3 = 2:D_max(3)
 %             for i_rep = 1:num_random_start
 %                 try
-%                 [~,~,~, elbo] = evalc('VB_Tucker_BTD(X,[d1,d2,d3]);');
+%                 [~,~,~, elbo] = evalc('pt_Tucker_BTD(X,[d1,d2,d3]);');
 %                 noc_elbo(d1,d2,d3,i_rep) = elbo(end);
 %                 catch
 %                    warning('Error for (%i,%i,%i)',d1,d2,d3)
@@ -84,7 +84,7 @@ D_est = [5,9,9];
 % Fit model
 G_best = []; U_best = []; elbo_best = -inf;
 for i_rep = 1:num_random_start
-    [EG, EU, elbo] = VB_Tucker_BTD(X,D_est);
+    [EG, EU, elbo] = pt_Tucker_BTD(X,D_est);
     if elbo(end)>elbo_best
         G_best = EG; U_best = EU; elbo_best=elbo(end);
     end
