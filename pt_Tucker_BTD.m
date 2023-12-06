@@ -1,4 +1,4 @@
-function [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D) %, E_G_init)
+function [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D, core_prior_type) %, E_G_init)
 %% PT_TUCKER_BTD fits a Tucker decomposition model to X. The number of
 % components in each mode are determined by D. If a matrix is input, then
 % a block-diagonal structure is assumed (rows are blocks and columns are
@@ -9,7 +9,7 @@ function [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D) %, E_G_init)
 %   X:      The N-dimensional data array
 %   D:      The number of components in each mode (columns) for each block
 %           (rows). NB. A row vector is Tucker decomposition.
-%
+%   core_prior_type:    'scale' or 'sparse' (default) prior on the core arrays 
 %
 % OUTPUT:
 %   E_G:    Expected value of the core array
@@ -74,8 +74,11 @@ update_core = true;
 update_factors = true;
 update_core_prior = true;
 update_noise_precision = true;
-core_prior_type = 'scale';
-core_prior_type = 'sparse';
+
+if nargin < 3 || isempty(core_prior_type)
+    %core_prior_type = 'scale';
+    core_prior_type = 'sparse';
+end
 
 fixed_lambda = 8;
 fixed_tau = 5; % Important to learn tau before switching away from MAP estimation of vMF
@@ -87,15 +90,11 @@ N=size(X);
 
 % Initialize Factors
 E_U=cell(1,Nx);
-% figure
 for i=1:Nx
     E_U{i}=zeros(N(i),Dtot(end,i));
     for j = 1:size(D,1)
         E_U{i}(:,Dtot(j, i)+1:Dtot(j+1, i))=orth(randn(N(i),D(j,i)));
     end
-%     [E_U{i},S,V] = svd(matricizing(X,1),'econ');
-%     subplot(1,Nx,i); plot(diag(S))
-%     E_U{i}(:,sum(D(:,i))+1:end) =[]; % Maybe start with an orthogonal matrix? also.. what to do when this is not possible - well if there is noise, then it is not an issue
 end
 H_U = 0;
 
@@ -197,7 +196,6 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
                     E_G_rel=E_G;
                     for jj=NN 
                         XUnoti=tmult(XUnoti,E_U{jj}(:,Dtot(j, jj)+1:Dtot(j+1, jj))',jj); % core times U_t^m
-%                         XUnoti2=tmult(XUnoti2,E_U{jj}(:,Dtot(j, jj)+1:Dtot(j+1, jj))',jj); % core times U_t^m
                         E_G_rel_size=size(E_G_rel);  % extract subcore
                         E_G_rel=matricizing(E_G_rel,jj);
                         E_G_rel=E_G_rel(I_M{jj}(:,j),:);
@@ -205,48 +203,15 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
                         E_G_rel=unmatricizing(E_G_rel,jj,E_G_rel_size);
                     end
                     %%
-%                     E_G_unfolded_tn=matricizing(E_G_rel,i);
-%                     E_G_unfolded_tn = E_G_unfolded_tn(I_M{i}(:,j),:);
-                    
-%                     dd=j;
-%                     Uthing_left = 1;%ones(1,D(jj(1),dd));
-%                     for jj = NN
-%                         Uthing_left = kron(Uthing_left,E_U{jj}(:,Dtot(dd, jj)+1:Dtot(dd+1, jj))); % Maybe reverse kron(EU, Uthing)
-%                     end
-
-%                     DD = 1:size(D,1);
-%                     DD(j) = [];
-%                     G_right = 1; 
-%                     UG_sum = 0;
-%                     UtUG_sum = 0;
-%                     for dd = DD
-% %                         Uthing_right = 1;%ones(1,D(jj(1),dd));
-%                         UtUthing = 1;
-%                         for jj = NN
-% %                             Uthing_right = kron(Uthing_right,E_U{jj}(:,Dtot(dd, jj)+1:Dtot(dd+1, jj))); % Maybe reverse kron(EU, Uthing)
-%                             UtUthing = kron(E_U{jj}(:,Dtot(j, jj)+1:Dtot(j+1, jj))'*E_U{jj}(:,Dtot(dd, jj)+1:Dtot(dd+1, jj)),UtUthing);
-%                         end
-%                         idx_core = arrayfun(@(ab) Dtot(dd, ab)+1:Dtot(dd+1, ab), 1:Nx, 'UniformOutput', false);
-% %                         UG_sumold = UG_sum;
-% %                         UG_sum = UG_sum + Uthing_right*matricizing(E_G(idx_core{:}),i)'*E_U{i}(:,Dtot(dd, i)+1:Dtot(dd+1, i))';
-%                         UtUG_sum = UtUG_sum + UtUthing*matricizing(E_G(idx_core{:}),i)'*E_U{i}(:,Dtot(dd, i)+1:Dtot(dd+1, i))';
-%                     end
-                    
-%                     extra = (E_G_unfolded_tn * Uthing_left' *UG_sum)';
-%                     extra_ = (E_G_unfolded_tn*UtUG_sum)';
-%                     db_diff(extra,extra_,'extra')
-                    %%
                     
                     XUnoti_i=matricizing(XUnoti,i);
                     E_G_rel=matricizing(E_G_rel,i);
                     F=(XUnoti_i*E_G_rel(I_M{i}(:,j),:)')*E_tau;
-%                     F = (matricizing(XUnoti2,i)*E_G_rel(I_M{i}(:,j),:)'-extra_)*E_tau;
-%                     db_diff(F,F2,'F')
                     [UU,SS,VV]=svd(F, 'econ');%0);
                     if size(F,2)>size(UU,2)
                         disp('Not linearly independent')
-                    
-                        keyboard
+                        %keyboard
+                        error('Core %i for mode %i did not have %i linearly independent factors - if this error presists, try a smaller core.',j,i,size(F,2))
                     end
                     [f,V,lF_j]=hyperg(N(i),diag(SS),3);
                     
@@ -301,36 +266,10 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     end
 
     %%
-%     extracted_core_vec = zeros(sum(prod(D,2)),1);
-%     Dprodtot = cumsum([0;prod(D,2)]);
-%       for j = 1:size(D,1)
-%         idx_core = arrayfun(@(ab) Dtot(j, ab)+1:Dtot(j+1, ab), 1:Nx, 'UniformOutput', false);
-%         eg = E_G(idx_core{:});
-%         extracted_core_vec(Dprodtot(j)+1:Dprodtot(j+1)) = eg(:);
-%     end
-% 
-%     UtU = eye(length(extracted_core_vec));
-%     for t = 1:size(D,1)
-%         for tm = t+1:size(D,1)
-%             utu =1;
-%             for n = 1:Nx
-%                 lu = E_U{n}(:,Dtot(t, n)+1:Dtot(t+1, n));
-%                 ru = E_U{n}(:,Dtot(tm, n)+1:Dtot(tm+1, n));
-%                 utu = kron(utu,lu'*ru);
-%             end
-%             % Symmetric
-%             UtU(Dprodtot(t)+1:Dprodtot(t+1), Dprodtot(tm)+1:Dprodtot(tm+1)) = utu;
-%             UtU(Dprodtot(tm)+1:Dprodtot(tm+1),Dprodtot(t)+1:Dprodtot(t+1)) = utu';
-%         end
-%     end
-%     
-
-    %%
     
     H_G = 0.5*sum(log(sigma_sq_core(M(:)))) + 0.5*sum(prod(D,2),1)*(1+log(2*pi));
     E_SSE=SST+sum(E_G_sq(:))+E_Rec_sq-2*X(:)'*E_Rec(:);
-%     E_SSE = SST+sum(E_G_sq(:))-2*X(:)'*E_Rec(:); 
-%     E_SSE=SST+sum(sum(UtU.*(extracted_core_vec*extracted_core_vec')))+sum(E_G_sq(:))-2*X(:)'*E_Rec(:);
+
     % Update noise precision (tau)
     if update_noise_precision && iter > fixed_tau
         est_tau_alpha= alpha_tau+prod(N)/2;
@@ -422,7 +361,7 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
             fixed_lambda = min(fixed_lambda, c_fixed_lambda);
             fixed_tau = min(fixed_tau, c_fixed_tau);
         catch ME
-            warning('Lowerbound diverged, trying again with different starting point.')
+            warning('Lowerbound diverged, try again with different starting point.')
 %             [E_G, E_U, ELBO] = pt_Tucker_BTD(X, D); %, E_G_init)
             return
         end
@@ -433,6 +372,7 @@ end
 % Display final iteration
 fprintf('%12.0f | %12.4f | %6.5e | %12.4e \n',iter, ELBO(iter),dELBO_relative/abs(ELBO(iter)),toc);
 
+% Note, this can happen, if the SNR is so low, that no model can be found.
 % assert(sum(abs(E_G(:)))~=0, 'The core array was entirely off, this should not happen. What is the scale of your data?')
 
 end
