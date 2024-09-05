@@ -39,7 +39,7 @@ D_est = D;
 % lowerbound: Contains the value of the evidience lowerbound at each iteration (higher is better)
 % model:      Distributions and lots of model info... (currently mostly for debugging)
 % all_samples: Returns all samples if using gibbs sampling
-        
+
 X_recon = nmodel(EA,EG);
 corr(X(:),X_recon(:))
 % [coeffRV(U{1},EA{1}),coeffRV(U{2},EA{2}),coeffRV(U{3},EA{3})]
@@ -51,7 +51,11 @@ visualizeDecomposition(EA,EG);
 
 %% Demo Block Term Decomposition
 Dbtd = [2,3,1;1,2,3; 3,3,3];
-[E_G, E_U, ELBO] = pt_Tucker_BTD(X+randn(size(X))*sqrt(var(X(:))), Dbtd);
+for prior = {'scale','sparse','ard'}%
+    [E_G, E_U, ELBO] = pt_Tucker_BTD(X+randn(size(X))*sqrt(var(X(:))), Dbtd, prior{1});
 
-figure;
-visualizeDecomposition(E_U,E_G);
+
+    figure;
+    visualizeDecomposition(E_U,E_G);
+    title(prior{1})
+end

@@ -250,12 +250,12 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     % Calculate residual error
     E_Rec=nmodel(E_U,E_G);
     E_Rec_sq=sum(E_Rec(:).^2);
-    for j=1:size(D,1)
+    for j=1:size(D,1) % for each core
         E_G_rel=E_G;
-        for jj=1:Nx
+        for jj=1:Nx % take out the j-core
             E_G_rel_size=size(E_G_rel);
             E_G_rel=matricizing(E_G_rel,jj);
-            E_G_rel=E_G_rel(I_M{jj}(:,j),:);
+            E_G_rel=E_G_rel(I_M{jj}(:,j),:);  
             E_G_rel_size(jj)=sum(I_M{jj}(:,j));
             E_G_rel=unmatricizing(E_G_rel,jj,E_G_rel_size);
         end
@@ -264,7 +264,9 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
         end
         E_Rec_sq=E_Rec_sq-sum(E_G_rel(:).^2);
     end
-
+    
+    %db_diff(sum(sigma_sq_core(:))+sum(E_Rec(:).^2),
+    %sum(E_G_sq(:))+E_Rec_sq,'<sum_t M_t'' sum_t M_t>') % TODO: Check this it would be more computationally efficient,
     %%
     
     H_G = 0.5*sum(log(sigma_sq_core(M(:)))) + 0.5*sum(prod(D,2),1)*(1+log(2*pi));
@@ -286,12 +288,37 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     % Update Lambda on the core.
     if update_core_prior && iter > fixed_lambda
         if strcmpi(core_prior_type,'scale')
-            est_lambda_alpha= alpha_lambda + numel(E_G_sq)/2;
+            est_lambda_alpha= alpha_lambda + numel(E_G_sq)/2;  % TODO: Check whether we want this - one shared scale -- Also implement a scale per block
             est_lambda_beta = beta_lambda + sum(E_G_sq(:))/2;
             
         elseif strcmpi(core_prior_type,'sparse')
             est_lambda_alpha= alpha_lambda + 1/2;
             est_lambda_beta = beta_lambda + E_G_sq/2;
+        elseif strcmpi(core_prior_type, 'ard')
+            % keyboard
+            est_lambda_alpha = zeros(size(D));
+            est_lambda_beta = cell(size(D));
+            for j = 1:size(D,1) % cores
+                for n= 1:ndims(X)
+                    % Pick out the correct parts
+                    idx = arrayfun(@(t) Dtot(j,t)+1:Dtot(j+1,t), 1:ndims(X),'UniformOutput', false);
+
+                    this_Gsq = E_G_sq(idx{:}); %permute(E_G_sq(idx{:}),[n, 1:n-1, n+1:ndims(X)]);
+                    % this_varphi = E_lambda_core(idx{:});
+
+                    this_kr_varphi = 1;
+                    for nn = [ndims(X):-1:n+1, n-1:-1:1]
+                        this_kr_varphi = krprod(this_kr_varphi,Eval_lambda{j,nn}); 
+                    end
+                    
+                    est_lambda_alpha(j,n) = prod(D(j,[1:n-1, n+1:ndims(X)]));
+                    est_lambda_beta{j,n} = beta_lambda + 1/2 * sum(matricizing(this_Gsq,n).*this_kr_varphi',2); 
+
+                    %Update Lambda{j,n}
+                    Eval_lambda{j,n} = (alpha_lambda + 1/2*est_lambda_alpha(j,n))./est_lambda_beta{j,n}; %#ok<AGROW>
+                end
+            end
+            est_lambda_alpha = alpha_lambda +1/2*est_lambda_alpha; % prod(n'!=n)^N D_t^(n')
         end
     else
         est_lambda_alpha = alpha_lambda;
@@ -299,21 +326,69 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
            est_lambda_beta = beta_lambda;
         elseif strcmpi(core_prior_type,'sparse')
             est_lambda_beta = beta_lambda*ones(size(E_G));
+        elseif strcmpi(core_prior_type, 'ard')
+            est_lambda_alpha =  alpha_lambda*ones(size(D));
+            est_lambda_beta = arrayfun(@(t) beta_lambda*ones(t,1), D,'UniformOutput',false);
+            
         end
         
     end
-    E_lambda_core=est_lambda_alpha./est_lambda_beta;
-    E_log_lambda_core=psi(est_lambda_alpha)-log(est_lambda_beta);
+
+    if iscell(est_lambda_beta)
+        E_lambda_core = zeros(Dtot(end,:));
+        E_log_lambda_core = zeros(Dtot(end,:));
+        Eval_lambda = cell(size(D));
+        for j = 1:size(D,1) % cores
+                expval = 1;
+                explogval = 1;
+                for n= ndims(X):-1:1
+                    Eval = est_lambda_alpha(j,n)./est_lambda_beta{j,n};
+                    Eval_lambda{j,n} = Eval;
+                    expval = krprod(expval, Eval); 
+                    explogval = krprod(explogval, psi(est_lambda_alpha(j,n))-log(est_lambda_beta{j,n}));
+                end
+                %numel(expval)
+                idx = arrayfun(@(t) Dtot(j,t)+1:Dtot(j+1,t), 1:ndims(X),'UniformOutput', false);
+                E_lambda_core(idx{:}) = reshape(expval,D(j,:));
+
+                %
+                E_log_lambda_core(idx{:}) = reshape(explogval,D(j,:));
+        end
+        
+    else
+        E_lambda_core=est_lambda_alpha./est_lambda_beta;
+        E_log_lambda_core=psi(est_lambda_alpha)-log(est_lambda_beta);
+    end
 
     E_lambda_core = E_lambda_core .* M;
-    if strcmpi(core_prior_type,'scale')
-           E_log_lambda_core = E_log_lambda_core*M;
-    elseif strcmpi(core_prior_type,'sparse')
-        est_lambda_beta = est_lambda_beta(M(:));
-    end
-    E_log_lambda_core = E_log_lambda_core(M(:));
-    [H_lambda_core, prior_lambda_core]=entropy_gamma(est_lambda_alpha, ...
+    if strcmpi(core_prior_type, 'ard')
+        % Calculate per core and per mode
+        tmp_H = 0;
+        tmp_prior = 0;
+        for i=1:numel(est_lambda_beta)
+
+            [H_lambda_core, prior_lambda_core]=entropy_gamma(est_lambda_alpha(i), ...
+                est_lambda_beta{i}, alpha_lambda, beta_lambda);
+            tmp_H = tmp_H + sum(H_lambda_core);
+            tmp_prior = tmp_prior + sum(prior_lambda_core);
+        end
+        H_lambda_core = tmp_H;
+        prior_lambda_core = tmp_prior;
+
+    else
+        if strcmpi(core_prior_type,'scale')
+               E_log_lambda_core = E_log_lambda_core*M; % To ensure correct counter in ELBO calculation.
+        elseif strcmpi(core_prior_type,'sparse')
+            est_lambda_beta = est_lambda_beta(M(:));
+
+        end
+
+        E_log_lambda_core = E_log_lambda_core(M(:));
+        [H_lambda_core, prior_lambda_core]=entropy_gamma(est_lambda_alpha, ...
         est_lambda_beta, alpha_lambda, beta_lambda);
+
+    end
+    
     
     % Calculate lowerbound
     % likelihood
@@ -324,7 +399,7 @@ while dELBO_relative>=conv_crit && iter<max_iter || ...
     stats.ELBO=stats.ELBO+sum(prior_lambda_core(:))+sum(H_lambda_core(:));
     % prior and entropy on core
     stats.ELBO=stats.ELBO + sum(0.5*(E_log_lambda_core(:)-log(2*pi)))...
-        -0.5*sum(E_G_sq(:).*E_lambda_core(:))...
+        -0.5*sum(E_G_sq(:).*E_lambda_core(:))... 
         +H_G;
     % prior and entropy on factors
     stats.ELBO=stats.ELBO + 0 + sum(H_U); % VMF prior is log(1)=0 ignoring same constants in prior and entropy
